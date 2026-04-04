@@ -1,6 +1,1 @@
-# Fenrir - Authorized scan targets
-# Add your CIDR ranges here, one per line
-# Only these ranges will be allowed to scan
-# Example:
-# 192.168.1.0/24
-# 10.0.0.0/8
+192.168.10.0/24
