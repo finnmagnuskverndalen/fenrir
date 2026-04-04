@@ -76,29 +76,67 @@ git clone https://github.com/finnmagnuskverndalen/fenrir.git
 cd fenrir
 ```
 
-### 2. Install dependencies
+### 2. Create and activate a virtual environment
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+> You will see `(venv)` in your terminal prompt when it is active.
+> Every time you open a new terminal to work on Fenrir, run `source venv/bin/activate` first.
+
+### 3. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure environment
+### 4. Configure environment
 ```bash
 cp .env.example .env
-# Edit .env and add your API keys
+nano .env
+# Add your OpenRouter API key on the OPENROUTER_API_KEY= line
+# Save with Ctrl+X → Y → Enter
 ```
 
-### 4. Define your authorized scope
+### 5. Define your authorized scope
 ```bash
 echo "192.168.1.0/24" > scope.txt
 ```
 
-### 5. Run
+### 6. Start the backend
 ```bash
 python backend/main.py
 ```
 
-### 6. Open the UI
-Navigate to `http://localhost:8765`
+You should see:
+```
+Fenrir is ready.
+INFO:     Uvicorn running on http://127.0.0.1:8765
+```
+
+### 7. Start the frontend (open a new terminal)
+```bash
+cd ~/fenrir
+source venv/bin/activate
+cd frontend
+npm install
+npm run dev
+```
+
+### 8. Open the UI
+Navigate to `http://localhost:5173`
+
+---
+
+## Venv cheatsheet
+
+| Command | What it does |
+|---|---|
+| `python3 -m venv venv` | Create the virtual environment (once only) |
+| `source venv/bin/activate` | Activate it (every new terminal session) |
+| `deactivate` | Exit the virtual environment |
+| `pip install -r requirements.txt` | Install all dependencies (after activating) |
+| `pip freeze` | List all installed packages |
 
 ---
 
