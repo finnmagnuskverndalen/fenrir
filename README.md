@@ -1,4 +1,4 @@
-# Fenrir - Network Security Scanner
+# Fenrir — Network Security Scanner
 
 > *In Norse mythology, Fenrir is the great wolf — unchained, relentless, and unstoppable. This tool hunts your network the same way.*
 
