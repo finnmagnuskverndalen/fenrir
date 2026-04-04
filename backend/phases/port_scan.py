@@ -17,7 +17,7 @@ async def run(session_id: str, target: str, dry_run: bool):
     nm = nmap.PortScanner()
     try:
         await ws.emit("info", "ports", "Running nmap -sV -sC -T4 (this may take a few minutes)...")
-        nm.scan(hosts=target, arguments="-sV -sC -T4 --open")
+        nm.scan(hosts=target, arguments="-sV -sC -T4 -Pn --open")
     except Exception as e:
         await ws.emit("error", "ports", f"nmap failed: {e}")
         audit_log("PHASE_PORTS_ERROR", target=target, detail=str(e))
