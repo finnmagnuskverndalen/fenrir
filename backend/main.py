@@ -1,4 +1,6 @@
 import uuid
+import os
+from datetime import datetime
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -173,3 +175,30 @@ def health():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=DEBUG)
+
+
+@app.get("/api/reports/list")
+def list_reports():
+    """List all saved report files."""
+    import glob
+    files = sorted(glob.glob("reports/*.md"), reverse=True)
+    result = []
+    for f in files[:20]:
+        stat = os.stat(f)
+        result.append({
+            "filename": os.path.basename(f),
+            "path": f,
+            "size": stat.st_size,
+            "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+        })
+    return result
+
+
+@app.get("/api/reports/download/{filename}")
+async def download_report(filename: str):
+    """Download a saved report file."""
+    from fastapi.responses import FileResponse
+    path = f"reports/{filename}"
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Report not found")
+    return FileResponse(path, media_type="text/markdown", filename=filename)

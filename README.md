@@ -2,18 +2,18 @@
 
 > *In Norse mythology, Fenrir is the great wolf — unchained, relentless, and unstoppable. This tool hunts your network the same way.*
 
-An AI-powered network security scanner. Discovers hosts, maps ports and services, identifies vulnerabilities, and uses an LLM to prioritize findings and suggest attack paths — all from a modern web UI.
+An AI-powered network security scanner. Discovers hosts, maps ports and services, identifies vulnerabilities, and uses an LLM to prioritize findings, explain exploits, and write a professional pentest report — all from a modern web UI.
 
 ---
 
 ## Features
 
 - **Phase 1 — DNS & WHOIS** — subdomain enumeration via subfinder, dig, whois
-- **Phase 2 — Port & service scan** — two-phase nmap: fast ping sweep then deep scan per live host, results stream live to UI
-- **Phase 3 — Vulnerability scan** — nuclei templates + CVE enrichment via NVD API, targets HTTP services automatically
+- **Phase 2 — Port & service scan** — two-phase nmap: fast ping sweep then deep scan per live host, streams results live
+- **Phase 3 — Vulnerability scan** — nuclei templates + CVE enrichment via NVD API, auto-targets HTTP services
 - **Phase 4 — AI analysis** — DeepSeek via OpenRouter prioritizes findings, explains exploits, suggests remediations
-- **Phase 5 — Reporting** — AI-written pentest report with executive summary, markdown export
-- **Web UI** — React + FastAPI dashboard with live auto-scrolling log, expandable findings, host port drilldown
+- **Phase 5 — Report generation** — AI writes a full structured pentest report with executive summary, findings, and remediation roadmap
+- **Web UI** — React + FastAPI dashboard with live log, expandable findings, host drilldown, markdown report viewer
 
 ---
 
@@ -23,7 +23,7 @@ An AI-powered network security scanner. Discovers hosts, maps ports and services
 |---|---|
 | Frontend | React + Vite + Tailwind CSS |
 | Backend | FastAPI + Python |
-| AI | OpenRouter — DeepSeek Chat (configurable, ~$0.01 per full scan) |
+| AI | OpenRouter — DeepSeek Chat (~$0.01 per full scan) |
 | Scanning | nmap, nuclei, subfinder, whois |
 | Database | SQLite |
 | Container | Docker |
@@ -35,38 +35,32 @@ An AI-powered network security scanner. Discovers hosts, maps ports and services
 ```
 fenrir/
 ├── backend/
-│   ├── main.py            # FastAPI entrypoint + duplicate scan prevention
+│   ├── main.py            # FastAPI entrypoint, scan orchestration, report endpoints
 │   ├── config.py          # Settings and scope loading
 │   ├── audit.py           # Append-only action logger
 │   ├── database.py        # SQLite + SQLAlchemy models
 │   ├── websocket.py       # Live streaming endpoint
 │   └── phases/
 │       ├── dns_whois.py   # Phase 1 — DNS and WHOIS
-│       ├── port_scan.py   # Phase 2 — two-phase nmap scan
-│       ├── vuln_scan.py   # Phase 3 — nuclei + NVD enrichment
+│       ├── port_scan.py   # Phase 2 — two-phase nmap
+│       ├── vuln_scan.py   # Phase 3 — nuclei + NVD
 │       └── exploit.py     # Phase 4 — exploit suggestions (dry-run)
 ├── ai/
-│   ├── analyst.py         # OpenRouter analysis and prioritization
-│   └── reporter.py        # AI report generation
-├── frontend/
-│   └── src/
-│       ├── pages/
-│       │   ├── Dashboard.jsx   # Live stats, phase progress, auto-scroll log
-│       │   ├── Hosts.jsx       # Hosts with expandable port table
-│       │   ├── Findings.jsx    # Expandable CVE cards with AI analysis
-│       │   ├── AIAnalysis.jsx  # Full AI analysis with markdown rendering
-│       │   ├── Reports.jsx     # Session picker, AI report, markdown download
-│       │   ├── Scope.jsx       # Authorized targets
-│       │   └── AuditLog.jsx    # Append-only action log
-│       └── components/
-│           ├── Sidebar.jsx
-│           ├── Topbar.jsx              # Scan input, debounced, no duplicate scans
-│           └── WebSocketProvider.jsx
-├── run.py                 # Entrypoint — use this to start the backend
-├── scope.txt              # Authorized CIDR ranges (edit before scanning)
-├── audit.log              # Append-only action log (auto-generated)
-├── .env.example           # Environment variable template
-├── requirements.txt       # Python dependencies
+│   ├── analyst.py         # OpenRouter finding analysis
+│   └── reporter.py        # Structured pentest report generation
+├── frontend/src/pages/
+│   ├── Dashboard.jsx      # Live stats, phase progress, auto-scroll log
+│   ├── Hosts.jsx          # Expandable host + port table
+│   ├── Findings.jsx       # Expandable CVE cards with AI analysis inline
+│   ├── AIAnalysis.jsx     # Full AI analysis with markdown rendering
+│   ├── Reports.jsx        # Session picker, AI report, download .md
+│   ├── Scope.jsx          # Authorized targets
+│   └── AuditLog.jsx       # Append-only action log
+├── reports/               # Generated pentest reports (auto-created)
+├── run.py                 # Backend entrypoint
+├── scope.txt              # Authorized CIDR ranges
+├── .env.example
+├── requirements.txt
 ├── Dockerfile
 └── README.md
 ```
@@ -75,114 +69,86 @@ fenrir/
 
 ## Quickstart
 
-### 1. Clone
+### 1. Clone and set up
 ```bash
 git clone https://github.com/finnmagnuskverndalen/fenrir.git
 cd fenrir
-```
-
-### 2. Create and activate a virtual environment
-```bash
 python3 -m venv venv
 source venv/bin/activate
-```
-
-> You will see `(venv)` in your terminal prompt when it is active.
-> Every time you open a new terminal to work on Fenrir, run `source venv/bin/activate` first.
-
-### 3. Install Python dependencies
-```bash
 pip install -r requirements.txt
 ```
 
-### 4. Install external scan tools
+### 2. Install scan tools
 ```bash
-# nmap and whois
 sudo apt install nmap whois -y
-
-# Give nmap network capabilities so it runs without sudo
 sudo setcap cap_net_raw,cap_net_admin+eip $(which nmap)
 
-# subfinder and nuclei (requires Go)
 sudo apt install golang-go -y
 go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-
-# Add Go binaries to PATH
-echo 'export PATH=$PATH:$HOME/go/bin' >> ~/.bashrc
-source ~/.bashrc
-
-# Download nuclei templates
+echo 'export PATH=$PATH:$HOME/go/bin' >> ~/.bashrc && source ~/.bashrc
 nuclei -update-templates
 ```
 
-### 5. Configure environment
+### 3. Configure
 ```bash
 cp .env.example .env
 nano .env
-# Set OPENROUTER_API_KEY — get a free key at https://openrouter.ai/keys
-# Set OPENROUTER_MODEL=deepseek/deepseek-chat (recommended — ~$0.01/scan)
-# Set DRY_RUN=false when ready to scan for real
+# Set OPENROUTER_API_KEY  — get free at https://openrouter.ai/keys
+# Set OPENROUTER_MODEL=deepseek/deepseek-chat
+# Set DRY_RUN=false when ready to scan
 ```
 
-### 6. Define your authorized scope
+### 4. Set scope
 ```bash
-# Find your network range
-ip route | grep src
-
-# Add it to scope.txt
+ip route | grep src        # find your network
 echo "192.168.x.0/24" > scope.txt
 ```
 
-### 7. Start the backend
+### 5. Run
 ```bash
+# Terminal 1 — backend
 python run.py
-```
 
-### 8. Start the frontend (new terminal)
-```bash
-cd ~/fenrir && source venv/bin/activate
+# Terminal 2 — frontend
 cd frontend && npm install && npm run dev
 ```
 
-### 9. Open the UI
-Navigate to `http://localhost:5173`
+Open **http://localhost:5173**
 
 ---
 
-## Recommended models (OpenRouter)
+## Recommended models
 
-| Model | Cost/1M tokens | Notes |
+| Model | Cost/1M tokens (in/out) | Notes |
 |---|---|---|
-| `deepseek/deepseek-chat` | $0.32 / $0.89 | Recommended — best value, strong security knowledge |
+| `deepseek/deepseek-chat` | $0.32 / $0.89 | **Recommended** — best value, strong security knowledge |
 | `meta-llama/llama-3.3-70b-instruct` | Free | Zero cost, good for testing |
 | `google/gemini-2.0-flash-exp` | Free | Zero cost, fast |
-| `mistralai/mistral-small-3.1` | ~$0.10 / $0.30 | Cheap, solid reasoning |
+| `mistralai/mistral-small-3.1` | ~$0.10 / $0.30 | Cheap, solid |
 
-A full scan with 47 findings costs approximately **$0.01** with DeepSeek.
+A full scan with 47 findings + report costs approximately **$0.02** with DeepSeek.
 
 ---
 
 ## Venv cheatsheet
 
-| Command | What it does |
-|---|---|
-| `python3 -m venv venv` | Create the virtual environment (once only) |
-| `source venv/bin/activate` | Activate it (every new terminal session) |
-| `deactivate` | Exit the virtual environment |
-| `pip install -r requirements.txt` | Install all dependencies (after activating) |
+```bash
+python3 -m venv venv          # create (once)
+source venv/bin/activate       # activate (every session)
+deactivate                     # exit
+pip install -r requirements.txt
+```
 
 ---
 
 ## Safety
 
-This tool is for **authorized testing only**.
-
-- `scope.txt` restricts all scans to explicitly allowed CIDR ranges — targets outside scope get a 403
+- `scope.txt` restricts scans to authorized CIDR ranges — out-of-scope targets get 403
 - Duplicate scans on the same target are blocked server-side
-- Every action is logged with a timestamp to `audit.log`
-- Exploitation features are **dry-run only** by default — set `DRY_RUN=false` in `.env` to enable
-- Public IP ranges are blocked unless `ALLOW_PUBLIC_IPS=true` is set in `.env`
+- All actions logged append-only to `audit.log`
+- Exploit features are dry-run only by default
+- Public IPs blocked unless `ALLOW_PUBLIC_IPS=true`
 
 ---
 
@@ -190,11 +156,11 @@ This tool is for **authorized testing only**.
 
 - [x] Milestone 1 — Project scaffold
 - [x] Milestone 2 — Backend core (FastAPI, SQLite, WebSocket, scope guard, audit log)
-- [x] Milestone 3 — Scan phases 1–3 (two-phase nmap, subfinder, nuclei, NVD, live log)
-- [x] Milestone 4 — AI analysis layer (DeepSeek via OpenRouter, 47 findings analyzed)
-- [x] Milestone 5 — Frontend polish (expandable findings, host drilldown, markdown AI output, session report picker, duplicate scan fix)
-- [ ] Milestone 6 — Report generator improvements (PDF export, templates)
-- [ ] Milestone 7 — Exploit layer (Metasploit RPC, dry-run)
+- [x] Milestone 3 — Scan phases 1–3 (two-phase nmap, nuclei, NVD enrichment, live log)
+- [x] Milestone 4 — AI analysis (DeepSeek via OpenRouter, 47 findings analyzed)
+- [x] Milestone 5 — Frontend polish (expandable findings/hosts, markdown AI output, duplicate scan fix)
+- [x] Milestone 6 — Report generator (structured pentest report, executive summary, remediation roadmap, .md download)
+- [ ] Milestone 7 — Exploit layer (Metasploit RPC, searchsploit, dry-run)
 - [ ] Milestone 8 — Docker, auth, rate limiting
 
 ---

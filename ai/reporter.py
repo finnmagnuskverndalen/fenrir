@@ -1,17 +1,49 @@
 import httpx
+import os
 from datetime import datetime
 from backend.config import OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_BASE_URL, AI_MAX_TOKENS
-from backend.database import SessionLocal, ScanSession, Host, Finding
+from backend.database import SessionLocal, ScanSession, Host, Port, Finding
 
 
-REPORT_SYSTEM_PROMPT = """You are a professional penetration tester writing a formal security report.
-Write clearly, professionally, and in structured markdown.
-Include an executive summary, technical findings, and remediation recommendations.
-Each finding should have: severity, description, evidence, impact, and remediation steps."""
+REPORT_SYSTEM_PROMPT = """You are a senior penetration tester writing a professional security assessment report.
+
+Write a complete, structured pentest report in markdown format with these exact sections:
+
+# Executive Summary
+A 2-3 paragraph non-technical summary covering: what was tested, overall risk level, most critical findings, and immediate recommended actions.
+
+# Scope and Methodology
+What was scanned, which tools were used, and the testing phases performed.
+
+# Risk Summary
+A table with columns: Severity | Count | Description
+
+# Critical and High Findings
+For each critical/high finding, include:
+### [SEVERITY] Finding Title
+- **CVE:** (if applicable)
+- **CVSS Score:** (if available)
+- **Affected Host:** 
+- **Description:** 
+- **Impact:** What an attacker could do if this is exploited
+- **Remediation:** Specific steps to fix this
+
+# Medium and Low Findings
+Brief descriptions of medium/low findings in a table format.
+
+# Remediation Roadmap
+Prioritized action plan:
+1. Immediate (fix within 24-48 hours)
+2. Short-term (fix within 1-2 weeks)
+3. Long-term (fix within 1-3 months)
+
+# Conclusion
+Brief closing paragraph.
+
+Be specific, technical, and actionable. Do not use placeholder text."""
 
 
 async def generate_report(session_id: str) -> str:
-    """Generate a full pentest report for a session using OpenRouter."""
     db = SessionLocal()
     try:
         session = db.query(ScanSession).filter(ScanSession.id == session_id).first()
@@ -21,6 +53,9 @@ async def generate_report(session_id: str) -> str:
         hosts = db.query(Host).filter(Host.session_id == session_id).all()
         findings = db.query(Finding).filter(Finding.session_id == session_id).all()
 
+        if not findings:
+            return "No findings to report for this session."
+
         context = _build_context(session, hosts, findings)
         report = await _call_openrouter(
             system=REPORT_SYSTEM_PROMPT,
@@ -28,42 +63,61 @@ async def generate_report(session_id: str) -> str:
         )
 
         # Save report to file
-        filename = f"reports/fenrir_report_{session_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M')}.md"
-        import os
         os.makedirs("reports", exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        filename = f"reports/fenrir_report_{session_id[:8]}_{timestamp}.md"
         with open(filename, "w") as f:
             f.write(report)
 
         return report
-
     finally:
         db.close()
 
 
 def _build_context(session, hosts, findings) -> str:
+    sev_counts = {}
+    for f in findings:
+        sev_counts[f.severity] = sev_counts.get(f.severity, 0) + 1
+
     lines = [
         f"Target: {session.target}",
         f"Scan date: {session.started_at}",
         f"Hosts discovered: {len(hosts)}",
         f"Total findings: {len(findings)}",
+        f"Severity breakdown: {', '.join(f'{k}: {v}' for k, v in sorted(sev_counts.items()))}",
         "",
-        "Hosts:",
+        "=== HOSTS ===",
     ]
-    for host in hosts:
-        ports = [f"{p.port}/{p.protocol} ({p.service})" for p in host.ports]
-        lines.append(f"  - {host.ip} ({host.hostname or 'no hostname'}) — {', '.join(ports)}")
 
-    lines.append("\nFindings:")
-    for f in sorted(findings, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}.get(x.severity, 5)):
-        lines.append(
-            f"  [{f.severity.upper()}] {f.title}"
-            + (f" ({f.cve_id})" if f.cve_id else "")
-            + (f" — CVSS {f.cvss_score}" if f.cvss_score else "")
-        )
+    for host in hosts:
+        ports = db_ports_summary(host)
+        lines.append(f"  {host.ip} ({host.hostname or 'no hostname'}) — OS: {host.os_guess or 'unknown'}")
+        lines.append(f"  Open ports: {ports}")
+
+    lines.append("")
+    lines.append("=== FINDINGS (sorted by severity) ===")
+
+    order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    sorted_findings = sorted(findings, key=lambda x: order.get(x.severity, 5))
+
+    for f in sorted_findings:
+        lines.append(f"\n[{f.severity.upper()}] {f.title}")
+        if f.cve_id:
+            lines.append(f"  CVE: {f.cve_id}")
+        if f.cvss_score:
+            lines.append(f"  CVSS: {f.cvss_score}")
+        if f.host:
+            lines.append(f"  Host: {f.host.ip if hasattr(f.host, 'ip') else 'unknown'}")
         if f.description:
-            lines.append(f"    {f.description[:300]}")
+            lines.append(f"  Description: {f.description[:400]}")
 
     return "\n".join(lines)
+
+
+def db_ports_summary(host) -> str:
+    if not host.ports:
+        return "none"
+    return ", ".join(f"{p.port}/{p.protocol}({p.service or '?'})" for p in host.ports[:10])
 
 
 async def _call_openrouter(system: str, user: str) -> str:
@@ -75,7 +129,7 @@ async def _call_openrouter(system: str, user: str) -> str:
     }
     payload = {
         "model": OPENROUTER_MODEL,
-        "max_tokens": AI_MAX_TOKENS,
+        "max_tokens": 4096,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
