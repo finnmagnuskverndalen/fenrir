@@ -280,3 +280,24 @@ async def ai_summarize(body: dict):
         return {"summary": summary}
     except Exception as e:
         return {"summary": f"AI summary unavailable: {e}"}
+
+
+@app.post("/api/ai/summarize")
+async def ai_summarize(body: dict):
+    from ai.analyst import _call_openrouter
+    phase = body.get("phase", "")
+    data = body.get("data", {})
+    prompts = {
+        "detection": f"You are a pentester. Summarize in 3 sentences what was found during network detection: {str(data)[:1000]}. Focus on interesting hosts and OS types.",
+        "vulnscan": f"You are a pentester. Summarize in 4 sentences the vulnerability scan findings: {str(data)[:2000]}. Highlight critical risks and immediate actions.",
+        "exploit_recon": f"You are a pentester. For this finding: {str(data)[:500]}, explain in 3 sentences: what the vulnerability is, how it can be exploited, and what access an attacker gains.",
+    }
+    prompt = prompts.get(phase, f"Summarize this security data in 3 sentences: {str(data)[:500]}")
+    try:
+        summary = await _call_openrouter(
+            system="You are a concise, technical penetration testing assistant. Keep responses brief and actionable.",
+            user=prompt,
+        )
+        return {"summary": summary}
+    except Exception as e:
+        return {"summary": f"AI summary unavailable: {e}"}
