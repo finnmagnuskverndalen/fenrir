@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon.png" alt="Fenrir - Network Security Scanner" width="400"/>
+  <img src="logo.png" alt="Fenrir - Network Security Scanner" width="400"/>
 </p>
 
 <p align="center">
