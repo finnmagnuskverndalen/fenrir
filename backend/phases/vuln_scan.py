@@ -1,10 +1,11 @@
 import asyncio
 import json
+import os
 import httpx
 from backend import websocket as ws
 from backend.audit import log as audit_log
 from backend.config import NVD_API_KEY, NVD_BASE_URL
-from backend.database import SessionLocal, Host, Finding
+from backend.database import SessionLocal, Host, Port, Finding
 
 
 async def run(session_id: str, target: str, dry_run: bool):
@@ -13,7 +14,7 @@ async def run(session_id: str, target: str, dry_run: bool):
     audit_log("PHASE_VULNS_START", target=target, dry_run=dry_run)
 
     if dry_run:
-        await ws.emit("warn", "vulns", f"[DRY RUN] Would run: nuclei -target {target} -severity critical,high,medium")
+        await ws.emit("warn", "vulns", f"[DRY RUN] Would run: nuclei -target {target} -severity critical,high,medium,low")
         audit_log("PHASE_VULNS_DRY_RUN", target=target, dry_run=True)
         return []
 
@@ -36,15 +37,33 @@ async def run(session_id: str, target: str, dry_run: bool):
 
 async def _run_nuclei(session_id: str, target: str) -> list:
     findings = []
+    home = os.path.expanduser("~")
+    templates_dir = f"{home}/nuclei-templates"
+
+    targets = await _build_nuclei_targets(session_id, target)
+    await ws.emit("info", "vulns", f"Nuclei scanning {len(targets)} target(s): {', '.join(targets)}")
+
     try:
         proc = await asyncio.create_subprocess_exec(
-            "nuclei", "-target", target,
-            "-severity", "critical,high,medium,low",
-            "-json", "-silent",
+            "nuclei",
+            "-target", ",".join(targets),
+            "-severity", "critical,high,medium,low,info",
+            "-t", templates_dir,
+            "-jsonl",
+            "-no-interactsh",
+            "-timeout", "10",
+            "-retries", "1",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+
+        err_output = stderr.decode(errors="ignore")
+        if err_output:
+            for line in err_output.splitlines()[:5]:
+                if line.strip():
+                    await ws.emit("info", "vulns", f"nuclei: {line.strip()}")
+
         for line in stdout.decode(errors="ignore").splitlines():
             if not line.strip():
                 continue
@@ -59,15 +78,42 @@ async def _run_nuclei(session_id: str, target: str) -> list:
                     "host": result.get("host", target),
                 }
                 findings.append(finding)
+                await ws.emit("warn", "vulns", f"[{finding['severity'].upper()}] {finding['title']}")
             except json.JSONDecodeError:
                 continue
     except FileNotFoundError:
         await ws.emit("warn", "vulns", "nuclei not found — skipping template scan")
     except asyncio.TimeoutError:
-        await ws.emit("warn", "vulns", "nuclei timed out after 5 minutes")
+        await ws.emit("warn", "vulns", "nuclei timed out after 10 minutes")
     except Exception as e:
         await ws.emit("error", "vulns", f"nuclei error: {e}")
     return findings
+
+
+async def _build_nuclei_targets(session_id: str, target: str) -> list:
+    """Build proper URL targets from ports discovered in the port scan phase."""
+    targets = []
+    db = SessionLocal()
+    try:
+        ip = target.split("/")[0]
+        host = db.query(Host).filter(
+            Host.session_id == session_id,
+            Host.ip == ip,
+        ).first()
+        if host:
+            for port in host.ports:
+                if port.state == "open":
+                    service = (port.service or "").lower()
+                    if "http" in service or port.port in (80, 443, 8080, 8443, 8888, 3000, 3001, 4000, 5000, 9090, 9000):
+                        scheme = "https" if ("ssl" in service or "https" in service or port.port in (443, 8443)) else "http"
+                        targets.append(f"{scheme}://{ip}:{port.port}")
+                    elif port.port not in (22, 21, 23, 25, 53):
+                        targets.append(f"{ip}:{port.port}")
+    finally:
+        db.close()
+    if not targets:
+        targets = [target]
+    return targets
 
 
 def _extract_cve(result: dict) -> str | None:
@@ -85,7 +131,6 @@ def _extract_cve(result: dict) -> str | None:
 
 
 async def _lookup_nvd(cve_id: str) -> dict:
-    """Fetch CVE details from NVD API."""
     headers = {}
     if NVD_API_KEY:
         headers["apiKey"] = NVD_API_KEY
@@ -118,9 +163,10 @@ async def _lookup_nvd(cve_id: str) -> dict:
 async def _save_finding(session_id: str, target: str, finding: dict):
     db = SessionLocal()
     try:
+        ip = finding.get("host", target).replace("http://", "").replace("https://", "").split(":")[0]
         host = db.query(Host).filter(
             Host.session_id == session_id,
-            Host.ip == finding.get("host", target)
+            Host.ip == ip,
         ).first()
         f = Finding(
             session_id=session_id,
