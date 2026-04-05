@@ -199,7 +199,7 @@ This tool is for **authorized testing only**.
 - [x] Milestone 1 — Project scaffold
 - [x] Milestone 2 — Backend core (FastAPI, SQLite, WebSocket, scope guard, audit log)
 - [x] Milestone 3 — Scan phases 1–3 (two-phase nmap, subfinder, nuclei, NVD, live log)
-- [ ] Milestone 4 — AI analysis layer (OpenRouter findings prioritization)
+- [x] Milestone 4 — AI analysis layer (OpenRouter findings prioritization)
 - [ ] Milestone 5 — Frontend polish (findings detail, host drilldown)
 - [ ] Milestone 6 — Report generator
 - [ ] Milestone 7 — Exploit layer (Metasploit RPC, dry-run)
