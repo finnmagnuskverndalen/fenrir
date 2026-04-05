@@ -1,9 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="Fenrir - Network Security Scanner" width="400"/>
-</p>
-
-<p align="center">
-  <em>In Norse mythology, Fenrir is the great wolf — unchained, relentless, and unstoppable.<br/>This tool hunts your network the same way.</em>
+  <img src="icon.png" alt="Fenrir - Network Security Scanner" width="400"/>
 </p>
 
 <p align="center">
