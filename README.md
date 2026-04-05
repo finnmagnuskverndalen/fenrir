@@ -160,7 +160,7 @@ pip install -r requirements.txt
 - [x] Milestone 4 — AI analysis (DeepSeek via OpenRouter, 47 findings analyzed)
 - [x] Milestone 5 — Frontend polish (expandable findings/hosts, markdown AI output, duplicate scan fix)
 - [x] Milestone 6 — Report generator (structured pentest report, executive summary, remediation roadmap, .md download)
-- [ ] Milestone 7 — Exploit layer (Metasploit RPC, searchsploit, dry-run)
+- [x] Milestone 7 — Exploit layer (searchsploit auto-lookup, Metasploit module search, dry-run command generator)
 - [ ] Milestone 8 — Docker, auth, rate limiting
 
 ---

@@ -1,7 +1,7 @@
 import uuid
+import asyncio
 import os
 from datetime import datetime
-import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -22,7 +22,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Track active scan sessions to prevent duplicates
 _active_scans: set = set()
 
 
@@ -60,7 +59,6 @@ class ScanRequest(BaseModel):
 async def start_scan(req: ScanRequest, db: Session = Depends(get_db)):
     target = req.target.strip()
 
-    # Prevent duplicate scans on the same target
     if target in _active_scans:
         raise HTTPException(status_code=429, detail=f"Scan already running for {target}")
 
@@ -75,9 +73,7 @@ async def start_scan(req: ScanRequest, db: Session = Depends(get_db)):
 
     audit_log("SCAN_STARTED", target=target, detail=f"phases={req.phases}", dry_run=req.dry_run)
     await ws.emit("ok", "init", f"Scan started against {target}", {"session_id": session_id})
-
     asyncio.create_task(run_scan(session_id, target, req.phases, req.dry_run))
-
     return {"session_id": session_id, "status": "started"}
 
 
@@ -87,13 +83,15 @@ async def run_scan(session_id: str, target: str, phases: list[str], dry_run: boo
         from backend.phases.dns_whois import run as run_dns
         from backend.phases.port_scan import run as run_ports
         from backend.phases.vuln_scan import run as run_vulns
+        from backend.phases.exploit import run as run_exploit
         from ai.analyst import run as run_ai
 
         phase_map = {
-            "dns":   run_dns,
-            "ports": run_ports,
-            "vulns": run_vulns,
-            "ai":    run_ai,
+            "dns":     run_dns,
+            "ports":   run_ports,
+            "vulns":   run_vulns,
+            "ai":      run_ai,
+            "exploit": run_exploit,
         }
 
         for phase in phases:
@@ -112,6 +110,52 @@ async def run_scan(session_id: str, target: str, phases: list[str], dry_run: boo
         _active_scans.discard(target)
 
 
+# ── Exploit endpoints ────────────────────────────────────────────────────────
+
+@app.get("/api/exploits/finding/{finding_id}")
+async def get_exploits_for_finding(finding_id: int):
+    from backend.phases.exploit import get_exploits_for_finding
+    return await get_exploits_for_finding(finding_id)
+
+
+@app.post("/api/exploits/lookup")
+async def lookup_exploits(body: dict):
+    from backend.phases.exploit import searchsploit_lookup
+    cve_id = body.get("cve_id")
+    title = body.get("title", "")
+    results = await searchsploit_lookup(cve_id, title)
+    return {"results": results}
+
+
+@app.get("/api/exploits/metasploit/{cve_id}")
+async def get_msf_modules(cve_id: str):
+    from backend.phases.exploit import get_metasploit_modules
+    modules = await get_metasploit_modules(cve_id)
+    return {"modules": modules, "cve_id": cve_id}
+
+
+@app.post("/api/exploits/run")
+async def run_exploit_endpoint(body: dict, db: Session = Depends(get_db)):
+    """Run an exploit — always dry-run unless explicitly enabled in config."""
+    target = body.get("target", "")
+    module = body.get("module", "")
+    options = body.get("options", {})
+
+    if not is_in_scope(target):
+        raise HTTPException(status_code=403, detail=f"Target {target} is not in scope.")
+
+    if DRY_RUN:
+        cmd = f"msfconsole -q -x 'use {module}; set RHOSTS {target};"
+        for k, v in options.items():
+            cmd += f" set {k} {v};"
+        cmd += " run; exit'"
+        audit_log("EXPLOIT_DRY_RUN", target=target, detail=f"module={module}")
+        return {"dry_run": True, "command": cmd, "message": "Set DRY_RUN=false in .env to execute"}
+
+    audit_log("EXPLOIT_EXECUTED", target=target, detail=f"module={module}")
+    return {"dry_run": False, "message": "Exploit execution not yet implemented — coming in next milestone"}
+
+
 # ── Reports ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/reports/generate/{session_id}")
@@ -119,6 +163,30 @@ async def generate_report(session_id: str):
     from ai.reporter import generate_report
     report = await generate_report(session_id)
     return {"report": report, "session_id": session_id}
+
+
+@app.get("/api/reports/list")
+def list_reports():
+    import glob
+    files = sorted(glob.glob("reports/*.md"), reverse=True)
+    result = []
+    for f in files[:20]:
+        stat = os.stat(f)
+        result.append({
+            "filename": os.path.basename(f),
+            "size": stat.st_size,
+            "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+        })
+    return result
+
+
+@app.get("/api/reports/download/{filename}")
+async def download_report(filename: str):
+    from fastapi.responses import FileResponse
+    path = f"reports/{filename}"
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Report not found")
+    return FileResponse(path, media_type="text/markdown", filename=filename)
 
 
 # ── Data endpoints ──────────────────────────────────────────────────────────
@@ -159,10 +227,7 @@ def get_audit():
 @app.get("/api/scope")
 def get_scope():
     from backend.config import load_scope, SCOPE_FILE
-    return {
-        "scope": [str(n) for n in load_scope()],
-        "file": str(SCOPE_FILE),
-    }
+    return {"scope": [str(n) for n in load_scope()], "file": str(SCOPE_FILE)}
 
 
 @app.get("/api/health")
@@ -170,35 +235,6 @@ def health():
     return {"status": "ok", "dry_run": DRY_RUN, "active_scans": list(_active_scans)}
 
 
-# ── Entry point ─────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=DEBUG)
-
-
-@app.get("/api/reports/list")
-def list_reports():
-    """List all saved report files."""
-    import glob
-    files = sorted(glob.glob("reports/*.md"), reverse=True)
-    result = []
-    for f in files[:20]:
-        stat = os.stat(f)
-        result.append({
-            "filename": os.path.basename(f),
-            "path": f,
-            "size": stat.st_size,
-            "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
-        })
-    return result
-
-
-@app.get("/api/reports/download/{filename}")
-async def download_report(filename: str):
-    """Download a saved report file."""
-    from fastapi.responses import FileResponse
-    path = f"reports/{filename}"
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Report not found")
-    return FileResponse(path, media_type="text/markdown", filename=filename)

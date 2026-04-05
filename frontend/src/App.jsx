@@ -4,6 +4,7 @@ import Topbar from './components/Topbar'
 import Dashboard from './pages/Dashboard'
 import Hosts from './pages/Hosts'
 import Findings from './pages/Findings'
+import Exploits from './pages/Exploits'
 import AIAnalysis from './pages/AIAnalysis'
 import Reports from './pages/Reports'
 import Scope from './pages/Scope'
@@ -22,6 +23,7 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/hosts" element={<Hosts />} />
               <Route path="/findings" element={<Findings />} />
+              <Route path="/exploits" element={<Exploits />} />
               <Route path="/ai" element={<AIAnalysis />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/scope" element={<Scope />} />
