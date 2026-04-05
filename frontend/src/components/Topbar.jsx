@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 export default function Topbar() {
   const [target, setTarget] = useState('')
   const [dryRun, setDryRun] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const scanningRef = useRef(false)
 
   async function startScan() {
-    if (!target.trim()) return
+    if (!target.trim() || scanningRef.current) return
+    scanningRef.current = true
     setLoading(true)
     setError('')
     try {
@@ -22,6 +24,7 @@ export default function Topbar() {
       setError('Could not connect to backend')
     } finally {
       setLoading(false)
+      scanningRef.current = false
     }
   }
 
@@ -40,12 +43,13 @@ export default function Topbar() {
         value={target}
         onChange={e => setTarget(e.target.value)}
         onKeyDown={e => e.key === 'Enter' && startScan()}
-        placeholder="Target (e.g. 192.168.1.0/24)"
+        placeholder="Target (e.g. 192.168.10.0/24)"
+        disabled={loading}
         style={{
           background: '#0d0d0d',
           border: '1px solid #2a2a2a',
           borderRadius: 4,
-          color: '#e5e5e5',
+          color: loading ? '#444' : '#e5e5e5',
           padding: '5px 10px',
           fontSize: 12,
           width: 240,
@@ -58,6 +62,7 @@ export default function Topbar() {
           type="checkbox"
           checked={dryRun}
           onChange={e => setDryRun(e.target.checked)}
+          disabled={loading}
           style={{ accentColor: '#e53e3e' }}
         />
         dry run
@@ -68,17 +73,24 @@ export default function Topbar() {
         disabled={loading || !target.trim()}
         style={{
           background: loading ? '#2a2a2a' : '#e53e3e',
-          color: '#fff',
+          color: loading ? '#555' : '#fff',
           border: 'none',
           borderRadius: 4,
           padding: '5px 14px',
           fontSize: 12,
           cursor: loading ? 'not-allowed' : 'pointer',
           fontFamily: 'inherit',
+          minWidth: 80,
         }}
       >
         {loading ? 'scanning...' : 'scan'}
       </button>
+
+      {loading && (
+        <span style={{ color: '#444', fontSize: 11 }}>
+          scan in progress — check live log
+        </span>
+      )}
 
       {error && <span style={{ color: '#e53e3e', fontSize: 11 }}>{error}</span>}
     </div>
