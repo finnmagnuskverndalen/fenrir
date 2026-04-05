@@ -20,6 +20,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Track active scan sessions to prevent duplicates
+_active_scans: set = set()
+
 
 @app.on_event("startup")
 async def startup():
@@ -53,50 +56,67 @@ class ScanRequest(BaseModel):
 
 @app.post("/api/scan/start")
 async def start_scan(req: ScanRequest, db: Session = Depends(get_db)):
-    if not is_in_scope(req.target):
-        audit_log("SCAN_BLOCKED", target=req.target, detail="Target not in scope")
-        raise HTTPException(status_code=403, detail=f"Target {req.target} is not in scope.")
+    target = req.target.strip()
+
+    # Prevent duplicate scans on the same target
+    if target in _active_scans:
+        raise HTTPException(status_code=429, detail=f"Scan already running for {target}")
+
+    if not is_in_scope(target):
+        audit_log("SCAN_BLOCKED", target=target, detail="Target not in scope")
+        raise HTTPException(status_code=403, detail=f"Target {target} is not in scope.")
 
     session_id = str(uuid.uuid4())
-    session = ScanSession(id=session_id, target=req.target, dry_run=req.dry_run)
+    session = ScanSession(id=session_id, target=target, dry_run=req.dry_run)
     db.add(session)
     db.commit()
 
-    audit_log("SCAN_STARTED", target=req.target, detail=f"phases={req.phases}", dry_run=req.dry_run)
-    await ws.emit("ok", "init", f"Scan started against {req.target}", {"session_id": session_id})
+    audit_log("SCAN_STARTED", target=target, detail=f"phases={req.phases}", dry_run=req.dry_run)
+    await ws.emit("ok", "init", f"Scan started against {target}", {"session_id": session_id})
 
-    # Phases run in background
-    asyncio.create_task(run_scan(session_id, req.target, req.phases, req.dry_run))
+    asyncio.create_task(run_scan(session_id, target, req.phases, req.dry_run))
 
     return {"session_id": session_id, "status": "started"}
 
 
 async def run_scan(session_id: str, target: str, phases: list[str], dry_run: bool):
-    """Orchestrate scan phases sequentially."""
-    from backend.phases.dns_whois import run as run_dns
-    from backend.phases.port_scan import run as run_ports
-    from backend.phases.vuln_scan import run as run_vulns
-    from ai.analyst import run as run_ai
+    _active_scans.add(target)
+    try:
+        from backend.phases.dns_whois import run as run_dns
+        from backend.phases.port_scan import run as run_ports
+        from backend.phases.vuln_scan import run as run_vulns
+        from ai.analyst import run as run_ai
 
-    phase_map = {
-        "dns": run_dns,
-        "ports": run_ports,
-        "vulns": run_vulns,
-        "ai": run_ai,
-    }
+        phase_map = {
+            "dns":   run_dns,
+            "ports": run_ports,
+            "vulns": run_vulns,
+            "ai":    run_ai,
+        }
 
-    for phase in phases:
-        if phase in phase_map:
-            await ws.emit_phase_update(phase, "running")
-            try:
-                await phase_map[phase](session_id, target, dry_run)
-                await ws.emit_phase_update(phase, "complete")
-            except Exception as e:
-                await ws.emit("error", phase, f"Phase {phase} failed: {e}")
-                await ws.emit_phase_update(phase, "failed")
+        for phase in phases:
+            if phase in phase_map:
+                await ws.emit_phase_update(phase, "running")
+                try:
+                    await phase_map[phase](session_id, target, dry_run)
+                    await ws.emit_phase_update(phase, "complete")
+                except Exception as e:
+                    await ws.emit("error", phase, f"Phase {phase} failed: {e}")
+                    await ws.emit_phase_update(phase, "failed")
 
-    audit_log("SCAN_COMPLETE", target=target, detail=f"session={session_id}")
-    await ws.emit("ok", "done", "Scan complete.")
+        audit_log("SCAN_COMPLETE", target=target, detail=f"session={session_id}")
+        await ws.emit("ok", "done", "Scan complete.")
+    finally:
+        _active_scans.discard(target)
+
+
+# ── Reports ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/reports/generate/{session_id}")
+async def generate_report(session_id: str):
+    from ai.reporter import generate_report
+    report = await generate_report(session_id)
+    return {"report": report, "session_id": session_id}
 
 
 # ── Data endpoints ──────────────────────────────────────────────────────────
@@ -121,7 +141,12 @@ def get_all_findings(severity: str = None, db: Session = Depends(get_db)):
     q = db.query(Finding)
     if severity:
         q = q.filter(Finding.severity == severity)
-    return q.order_by(Finding.discovered_at.desc()).limit(100).all()
+    return q.order_by(Finding.discovered_at.desc()).limit(200).all()
+
+
+@app.get("/api/hosts")
+def get_all_hosts(db: Session = Depends(get_db)):
+    return db.query(Host).order_by(Host.discovered_at.desc()).limit(100).all()
 
 
 @app.get("/api/audit")
@@ -140,7 +165,7 @@ def get_scope():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "dry_run": DRY_RUN}
+    return {"status": "ok", "dry_run": DRY_RUN, "active_scans": list(_active_scans)}
 
 
 # ── Entry point ─────────────────────────────────────────────────────────────
