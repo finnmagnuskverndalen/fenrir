@@ -12,7 +12,7 @@ from backend.database import init_db, get_db, ScanSession, Host, Finding
 from backend.audit import log as audit_log, read_log
 from backend import websocket as ws
 
-app = FastAPI(title="Fenrir - Network Security Scanner", version="0.1.0")
+app = FastAPI(title="Fenrir - Network Security Scanner", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,8 +35,6 @@ async def startup():
         print(f"[WARNING] Config issue: {e}")
 
 
-# ── WebSocket ───────────────────────────────────────────────────────────────
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await ws.connect(websocket)
@@ -47,11 +45,9 @@ async def websocket_endpoint(websocket: WebSocket):
         ws.disconnect(websocket)
 
 
-# ── Scan ────────────────────────────────────────────────────────────────────
-
 class ScanRequest(BaseModel):
     target: str
-    phases: list[str] = ["dns", "ports", "vulns", "ai"]
+    phases: list[str] = ["discovery"]
     dry_run: bool = True
 
 
@@ -81,17 +77,19 @@ async def run_scan(session_id: str, target: str, phases: list[str], dry_run: boo
     _active_scans.add(target)
     try:
         from backend.phases.dns_whois import run as run_dns
+        from backend.phases.host_discovery import run as run_discovery
         from backend.phases.port_scan import run as run_ports
         from backend.phases.vuln_scan import run as run_vulns
         from backend.phases.exploit import run as run_exploit
         from ai.analyst import run as run_ai
 
         phase_map = {
-            "dns":     run_dns,
-            "ports":   run_ports,
-            "vulns":   run_vulns,
-            "ai":      run_ai,
-            "exploit": run_exploit,
+            "discovery": run_discovery,
+            "dns":       run_dns,
+            "ports":     run_ports,
+            "vulns":     run_vulns,
+            "ai":        run_ai,
+            "exploit":   run_exploit,
         }
 
         for phase in phases:
@@ -110,53 +108,26 @@ async def run_scan(session_id: str, target: str, phases: list[str], dry_run: boo
         _active_scans.discard(target)
 
 
-# ── Exploit endpoints ────────────────────────────────────────────────────────
+@app.post("/api/ai/summarize")
+async def ai_summarize(body: dict):
+    from ai.analyst import _call_openrouter
+    phase = body.get("phase", "")
+    data = body.get("data", {})
+    prompts = {
+        "detection": f"You are a pentester. Summarize in 3 sentences what was found during network detection: {str(data)[:1000]}. Focus on interesting hosts and OS types.",
+        "vulnscan": f"You are a pentester. Summarize in 4 sentences the vulnerability scan findings: {str(data)[:2000]}. Highlight critical risks and immediate actions.",
+        "exploit_recon": f"You are a pentester. For this finding: {str(data)[:500]}, explain in 3 sentences: what the vulnerability is, how it can be exploited, and what access an attacker gains.",
+    }
+    prompt = prompts.get(phase, f"Summarize this security data in 3 sentences: {str(data)[:500]}")
+    try:
+        summary = await _call_openrouter(
+            system="You are a concise, technical penetration testing assistant. Keep responses brief and actionable.",
+            user=prompt,
+        )
+        return {"summary": summary}
+    except Exception as e:
+        return {"summary": f"AI summary unavailable: {e}"}
 
-@app.get("/api/exploits/finding/{finding_id}")
-async def get_exploits_for_finding(finding_id: int):
-    from backend.phases.exploit import get_exploits_for_finding
-    return await get_exploits_for_finding(finding_id)
-
-
-@app.post("/api/exploits/lookup")
-async def lookup_exploits(body: dict):
-    from backend.phases.exploit import searchsploit_lookup
-    cve_id = body.get("cve_id")
-    title = body.get("title", "")
-    results = await searchsploit_lookup(cve_id, title)
-    return {"results": results}
-
-
-@app.get("/api/exploits/metasploit/{cve_id}")
-async def get_msf_modules(cve_id: str):
-    from backend.phases.exploit import get_metasploit_modules
-    modules = await get_metasploit_modules(cve_id)
-    return {"modules": modules, "cve_id": cve_id}
-
-
-@app.post("/api/exploits/run")
-async def run_exploit_endpoint(body: dict, db: Session = Depends(get_db)):
-    """Run an exploit — always dry-run unless explicitly enabled in config."""
-    target = body.get("target", "")
-    module = body.get("module", "")
-    options = body.get("options", {})
-
-    if not is_in_scope(target):
-        raise HTTPException(status_code=403, detail=f"Target {target} is not in scope.")
-
-    if DRY_RUN:
-        cmd = f"msfconsole -q -x 'use {module}; set RHOSTS {target};"
-        for k, v in options.items():
-            cmd += f" set {k} {v};"
-        cmd += " run; exit'"
-        audit_log("EXPLOIT_DRY_RUN", target=target, detail=f"module={module}")
-        return {"dry_run": True, "command": cmd, "message": "Set DRY_RUN=false in .env to execute"}
-
-    audit_log("EXPLOIT_EXECUTED", target=target, detail=f"module={module}")
-    return {"dry_run": False, "message": "Exploit execution not yet implemented — coming in next milestone"}
-
-
-# ── Reports ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/reports/generate/{session_id}")
 async def generate_report(session_id: str):
@@ -189,7 +160,42 @@ async def download_report(filename: str):
     return FileResponse(path, media_type="text/markdown", filename=filename)
 
 
-# ── Data endpoints ──────────────────────────────────────────────────────────
+@app.post("/api/exploits/lookup")
+async def lookup_exploits(body: dict):
+    from backend.phases.exploit import searchsploit_lookup
+    results = await searchsploit_lookup(body.get("cve_id"), body.get("title", ""))
+    return {"results": results}
+
+
+@app.get("/api/exploits/finding/{finding_id}")
+async def get_exploits_for_finding(finding_id: int):
+    from backend.phases.exploit import get_exploits_for_finding
+    return await get_exploits_for_finding(finding_id)
+
+
+@app.get("/api/exploits/metasploit/{cve_id}")
+async def get_msf_modules(cve_id: str):
+    from backend.phases.exploit import get_metasploit_modules
+    modules = await get_metasploit_modules(cve_id)
+    return {"modules": modules, "cve_id": cve_id}
+
+
+@app.post("/api/exploits/run")
+async def run_exploit_endpoint(body: dict):
+    target = body.get("target", "")
+    module = body.get("module", "")
+    options = body.get("options", {})
+    if not is_in_scope(target):
+        raise HTTPException(status_code=403, detail=f"Target {target} is not in scope.")
+    if DRY_RUN:
+        cmd = f"msfconsole -q -x 'use {module}; set RHOSTS {target};"
+        for k, v in options.items():
+            cmd += f" set {k} {v};"
+        cmd += " run; exit'"
+        audit_log("EXPLOIT_DRY_RUN", target=target, detail=f"module={module}")
+        return {"dry_run": True, "command": cmd, "message": "Set DRY_RUN=false in .env to execute"}
+    return {"dry_run": False, "message": "Exploit execution — enable in .env"}
+
 
 @app.get("/api/sessions")
 def get_sessions(db: Session = Depends(get_db)):
@@ -197,12 +203,12 @@ def get_sessions(db: Session = Depends(get_db)):
 
 
 @app.get("/api/sessions/{session_id}/hosts")
-def get_hosts(session_id: str, db: Session = Depends(get_db)):
+def get_session_hosts(session_id: str, db: Session = Depends(get_db)):
     return db.query(Host).filter(Host.session_id == session_id).all()
 
 
 @app.get("/api/sessions/{session_id}/findings")
-def get_findings(session_id: str, db: Session = Depends(get_db)):
+def get_session_findings(session_id: str, db: Session = Depends(get_db)):
     return db.query(Finding).filter(Finding.session_id == session_id).all()
 
 
@@ -238,87 +244,3 @@ def health():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=DEBUG)
-
-
-@app.post("/api/ai/summarize")
-async def ai_summarize(body: dict):
-    from ai.analyst import _call_openrouter
-    phase = body.get("phase", "")
-    data = body.get("data", {})
-    prompts = {
-        "detection": f"You are a pentester. Summarize in 3 sentences what was found during network detection: {str(data)[:1000]}. Focus on interesting hosts and OS types.",
-        "vulnscan": f"You are a pentester. Summarize in 4 sentences the vulnerability scan findings: {str(data)[:2000]}. Highlight critical risks and immediate actions.",
-        "exploit_recon": f"You are a pentester. For this finding: {str(data)[:500]}, explain in 3 sentences: what the vulnerability is, how it can be exploited, and what access an attacker gains.",
-    }
-    prompt = prompts.get(phase, f"Summarize this security data in 3 sentences: {str(data)[:500]}")
-    try:
-        summary = await _call_openrouter(
-            system="You are a concise, technical penetration testing assistant. Keep responses brief and actionable.",
-            user=prompt,
-        )
-        return {"summary": summary}
-    except Exception as e:
-        return {"summary": f"AI summary unavailable: {e}"}
-
-
-@app.post("/api/ai/summarize")
-async def ai_summarize(body: dict):
-    from ai.analyst import _call_openrouter
-    phase = body.get("phase", "")
-    data = body.get("data", {})
-    prompts = {
-        "detection": f"You are a pentester. Summarize in 3 sentences what was found during network detection: {str(data)[:1000]}. Focus on interesting hosts and OS types.",
-        "vulnscan": f"You are a pentester. Summarize in 4 sentences the vulnerability scan findings: {str(data)[:2000]}. Highlight critical risks and immediate actions.",
-        "exploit_recon": f"You are a pentester. For this finding: {str(data)[:500]}, explain in 3 sentences: what the vulnerability is, how it can be exploited, and what access an attacker gains.",
-    }
-    prompt = prompts.get(phase, f"Summarize this security data in 3 sentences: {str(data)[:500]}")
-    try:
-        summary = await _call_openrouter(
-            system="You are a concise, technical penetration testing assistant. Keep responses brief and actionable.",
-            user=prompt,
-        )
-        return {"summary": summary}
-    except Exception as e:
-        return {"summary": f"AI summary unavailable: {e}"}
-
-
-@app.post("/api/ai/summarize")
-async def ai_summarize(body: dict):
-    from ai.analyst import _call_openrouter
-    phase = body.get("phase", "")
-    data = body.get("data", {})
-    prompts = {
-        "detection": f"You are a pentester. Summarize in 3 sentences what was found during network detection: {str(data)[:1000]}. Focus on interesting hosts and OS types.",
-        "vulnscan": f"You are a pentester. Summarize in 4 sentences the vulnerability scan findings: {str(data)[:2000]}. Highlight critical risks and immediate actions.",
-        "exploit_recon": f"You are a pentester. For this finding: {str(data)[:500]}, explain in 3 sentences: what the vulnerability is, how it can be exploited, and what access an attacker gains.",
-    }
-    prompt = prompts.get(phase, f"Summarize this security data in 3 sentences: {str(data)[:500]}")
-    try:
-        summary = await _call_openrouter(
-            system="You are a concise, technical penetration testing assistant. Keep responses brief and actionable.",
-            user=prompt,
-        )
-        return {"summary": summary}
-    except Exception as e:
-        return {"summary": f"AI summary unavailable: {e}"}
-
-
-@app.post("/api/ai/summarize")
-async def ai_summarize(body: dict):
-    from ai.analyst import _call_openrouter
-    phase = body.get("phase", "")
-    data = body.get("data", {})
-    prompts = {
-        "detection": f"You are a pentester. Summarize in 3 sentences what was found during network detection: {str(data)[:1000]}. Focus on interesting hosts and OS types.",
-        "vulnscan": f"You are a pentester. Summarize in 4 sentences the vulnerability scan findings: {str(data)[:2000]}. Highlight critical risks and immediate actions.",
-        "exploit_recon": f"You are a pentester. For this finding: {str(data)[:500]}, explain in 3 sentences: what the vulnerability is, how it can be exploited, and what access an attacker gains.",
-    }
-    prompt = prompts.get(phase, f"Summarize this security data in 3 sentences: {str(data)[:500]}")
-    try:
-        summary = await _call_openrouter(
-            system="You are a concise, technical penetration testing assistant. Keep responses brief and actionable.",
-            user=prompt,
-        )
-        return {"summary": summary}
-    except Exception as e:
-        return {"summary": f"AI summary unavailable: {e}"}
