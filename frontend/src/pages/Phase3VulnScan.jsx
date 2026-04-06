@@ -46,8 +46,8 @@ export default function Phase3VulnScan() {
       })
       if (!res.ok) { const d = await res.json(); addTerminalLine(`[WARN] [phase3] ${ip}: ${d.detail}`) }
 
-      for (let w = 0; w < 90; w++) {
-        await new Promise(r => setTimeout(r, 2000))
+      for (let w = 0; w < 150; w++) {
+        await new Promise(r => setTimeout(r, 3000))
         const h = await fetch('/api/health').then(r => r.json()).catch(() => ({}))
         if (!h.active_scans?.includes(ip)) break
       }

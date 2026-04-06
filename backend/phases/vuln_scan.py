@@ -46,13 +46,13 @@ async def _run_nuclei(session_id: str, target: str) -> list:
             "-target", ",".join(targets),
             "-severity", "critical,high,medium,low,info",
             "-json", "-silent",
-            "-timeout", "15",
-            "-retries", "1",
-            "-rate-limit", "50",
+            "-retries", "2",
+            "-rate-limit", "100",
+            "-timeout", "30",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=600)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=1200)
 
         seen = set()
         for line in stdout.decode(errors="ignore").splitlines():
