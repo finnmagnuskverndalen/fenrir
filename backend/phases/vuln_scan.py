@@ -8,7 +8,6 @@ from backend.database import SessionLocal, Host, Port, Finding
 
 
 async def run(session_id: str, target: str, dry_run: bool):
-    """Phase 3 — nuclei vulnerability scan + NVD enrichment + per-finding AI analysis."""
     await ws.emit("info", "vulns", f"Starting vulnerability scan on {target}")
     audit_log("PHASE_VULNS_START", target=target, dry_run=dry_run)
 
@@ -19,15 +18,11 @@ async def run(session_id: str, target: str, dry_run: bool):
     findings = await _run_nuclei(session_id, target)
     await ws.emit("ok", "vulns", f"Nuclei complete. {len(findings)} findings. Enriching with NVD...")
 
-    saved_ids = []
     for finding in findings:
         if finding.get("cve_id"):
             nvd_data = await _lookup_nvd(finding["cve_id"])
             finding.update(nvd_data)
-
-        finding_id = await _save_finding(session_id, target, finding)
-        if finding_id:
-            saved_ids.append(finding_id)
+        await _save_finding(session_id, target, finding)
         await ws.emit_finding(finding)
 
     audit_log("PHASE_VULNS_COMPLETE", target=target, detail=f"findings={len(findings)}")
@@ -37,13 +32,13 @@ async def run(session_id: str, target: str, dry_run: bool):
 
 async def _run_nuclei(session_id: str, target: str) -> list:
     findings = []
-    targets = await _build_nuclei_targets(session_id, target)
+    targets = await _build_nuclei_targets(target)
 
     if not targets:
-        await ws.emit("warn", "vulns", f"No HTTP targets found for {target} — run port scan first")
+        await ws.emit("warn", "vulns", f"No HTTP services found for {target} — skipping nuclei")
         return []
 
-    await ws.emit("info", "vulns", f"Scanning {len(targets)} target(s): {', '.join(targets[:3])}{'...' if len(targets) > 3 else ''}")
+    await ws.emit("info", "vulns", f"Scanning {len(targets)} target(s): {', '.join(targets[:4])}{'...' if len(targets) > 4 else ''}")
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -68,13 +63,10 @@ async def _run_nuclei(session_id: str, target: str) -> list:
                 title = result.get("info", {}).get("name", "Unknown")
                 severity = result.get("info", {}).get("severity", "info")
                 host = result.get("host", target)
-
-                # Deduplicate by title+host
                 key = f"{title}|{host}"
                 if key in seen:
                     continue
                 seen.add(key)
-
                 finding = {
                     "title": title,
                     "severity": severity,
@@ -83,7 +75,6 @@ async def _run_nuclei(session_id: str, target: str) -> list:
                     "detected_by": "nuclei",
                     "host": host,
                     "template_id": result.get("template-id", ""),
-                    "matched_at": result.get("matched-at", ""),
                 }
                 findings.append(finding)
                 await ws.emit("warn", "vulns", f"[{severity.upper()}] {title}")
@@ -91,7 +82,7 @@ async def _run_nuclei(session_id: str, target: str) -> list:
                 continue
 
     except FileNotFoundError:
-        await ws.emit("warn", "vulns", "nuclei not found — install with: go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")
+        await ws.emit("warn", "vulns", "nuclei not found — install: go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")
     except asyncio.TimeoutError:
         await ws.emit("warn", "vulns", "nuclei timed out after 10 minutes")
     except Exception as e:
@@ -100,28 +91,49 @@ async def _run_nuclei(session_id: str, target: str) -> list:
     return findings
 
 
-async def _build_nuclei_targets(session_id: str, target: str) -> list:
+async def _build_nuclei_targets(target: str) -> list:
+    """Build HTTP/HTTPS targets from ports discovered for this IP — searches across all sessions."""
+    ip = target.split("/")[0]
     targets = []
+
     db = SessionLocal()
     try:
-        ip = target.split("/")[0]
-        host = db.query(Host).filter(
-            Host.session_id == session_id,
-            Host.ip == ip,
-        ).first()
+        # Find the most recent host entry for this IP (any session)
+        host = db.query(Host).filter(Host.ip == ip).order_by(Host.id.desc()).first()
 
         if host and host.ports:
             for port in host.ports:
-                if port.state == "open":
-                    service = (port.service or "").lower()
-                    if "http" in service or port.port in (80, 443, 8080, 8443, 8888, 3000, 3001, 4000, 5000, 9090, 9000, 4443):
-                        scheme = "https" if ("ssl" in service or "https" in service or port.port in (443, 8443, 4443)) else "http"
-                        targets.append(f"{scheme}://{ip}:{port.port}")
+                if port.state != "open":
+                    continue
+                service = (port.service or "").lower()
+                version = (port.version or "").lower()
+                p = port.port
+
+                is_http = (
+                    "http" in service or
+                    "http" in version or
+                    p in (80, 443, 8080, 8443, 8888, 3000, 3001, 4000, 5000,
+                          8008, 8009, 8800, 9000, 9090, 10001, 4443, 7080, 7443)
+                )
+
+                if is_http:
+                    is_https = (
+                        "ssl" in service or "https" in service or
+                        "tls" in service or "ssl" in version or
+                        p in (443, 8443, 4443, 8800)
+                    )
+                    scheme = "https" if is_https else "http"
+                    targets.append(f"{scheme}://{ip}:{p}")
+
+        # If no ports found in DB, fall back to common ports
+        if not targets:
+            await ws.emit("info", "vulns", f"No port scan data for {ip} — trying common HTTP ports")
+            for p, scheme in [(80,'http'),(443,'https'),(8080,'http'),(8443,'https'),(8008,'http'),(3000,'http'),(8888,'http')]:
+                targets.append(f"{scheme}://{ip}:{p}")
+
     finally:
         db.close()
 
-    if not targets:
-        targets = [target]
     return targets
 
 
@@ -164,9 +176,8 @@ async def _save_finding(session_id: str, target: str, finding: dict) -> int | No
     db = SessionLocal()
     try:
         ip = finding.get("host", target).replace("http://", "").replace("https://", "").split(":")[0].split("/")[0]
-        host = db.query(Host).filter(Host.session_id == session_id, Host.ip == ip).first()
+        host = db.query(Host).filter(Host.ip == ip).order_by(Host.id.desc()).first()
 
-        # Deduplicate in DB — don't insert same title+host twice
         existing = db.query(Finding).filter(
             Finding.session_id == session_id,
             Finding.title == finding.get("title"),
