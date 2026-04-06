@@ -1,12 +1,16 @@
 <p align="center">
-  <img src="logo.png" alt="Fenrir - Network Security Scanner" width="720"/>
+  <img src="logo.png" alt="Fenrir" width="720"/>
+</p>
+
+<p align="center">
+  <em>In Norse mythology, Fenrir is the great wolf — unchained, relentless, and unstoppable.<br/>This tool hunts your network the same way.</em>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/fastapi-0.115-green?style=flat-square" />
   <img src="https://img.shields.io/badge/react-18-61dafb?style=flat-square" />
-  <img src="https://img.shields.io/badge/AI-OpenRouter%20%2F%20DeepSeek-orange?style=flat-square" />
+  <img src="https://img.shields.io/badge/AI-OpenRouter-orange?style=flat-square" />
   <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
 </p>
 
@@ -14,26 +18,39 @@
 
 ## What is Fenrir?
 
-Fenrir is a modern AI-powered network security scanner inspired by Armitage — built for pentesters and security researchers. It provides a **5-phase war room interface** that walks you through the full attack chain: discover hosts, scan ports, identify vulnerabilities, exploit them, and generate a professional pentest report. An AI assistant (DeepSeek via OpenRouter) summarizes findings at every phase and guides the exploitation process.
+Fenrir is an AI-powered network security scanner inspired by Armitage — rebuilt from scratch with a modern dark UI, 5-phase war room workflow, live network topology map, and LLM integration at every step. Discover hosts, map services, scan for vulnerabilities, look up exploits, and generate professional pentest reports — all from one interface.
+
+---
+
+## Interface
+
+A **5-phase war room** — phase tabs across the top, live terminal at the bottom, everything streams in real time:
+
+| Phase | Name | What it does |
+|---|---|---|
+| **01** | Detection | ARP sweep → OS fingerprinting → host cards + network topology map |
+| **02** | Port Scan | Select hosts → deep nmap service scan — sequential, one host at a time |
+| **03** | Vuln Scan | Select hosts → nuclei templates + NVD CVE enrichment + per-finding AI analysis |
+| **04** | Exploitation | Select host + vuln → searchsploit + Metasploit modules + AI recon + agent log |
+| **05** | Report | AI writes full pentest report → download .md |
 
 ---
 
 ## Features
 
-| Phase | What it does |
-|---|---|
-| **01 Detection** | nmap ping sweep across CIDR, OS fingerprinting, host discovery |
-| **02 Port Scan** | Select specific hosts → deep nmap service scan, streams results live |
-| **03 Vuln Scan** | nuclei templates against HTTP services + NVD CVE enrichment + AI summary |
-| **04 Exploitation** | searchsploit lookup, Metasploit module search, AI recon per target, dry-run command generator |
-| **05 Report** | AI writes full structured pentest report with exec summary + remediation roadmap |
-
-**UI highlights:**
-- Phase-tabbed war room layout — click through phases in sequence
-- Host cards with OS icons, port pills, severity badges, red skull when compromised
-- Live terminal at the bottom streaming all tool output in real time
-- AI summarization at every phase via DeepSeek
-- Dark hacker aesthetic — Orbitron display font, Share Tech Mono terminal font, red wolf branding
+- **ARP sweep** — finds all live hosts in seconds, cannot be blocked by firewall
+- **Parallel OS detection** — fingerprints 5 hosts simultaneously after discovery
+- **Sequential scanning** — Phase 2 and 3 scan one host at a time to prevent memory overload
+- **Deduplication** — findings deduplicated in both UI and database
+- **Per-finding AI analysis** — DeepSeek analyzes each critical/high finding individually
+- **AI retry logic** — 3 retries with backoff on rate limits and timeouts
+- **Singleton WebSocket** — eliminates duplicate terminal messages
+- **Network topology map** — SVG visualization, hosts turn red skull when compromised
+- **Host cards persist** — hosts load from DB on browser refresh
+- **Terminal filtering** — filter by ALL / ERROR / WARN / OK / INFO
+- **Agent log** — Phase 4 shows a live AI agent log as it chains searchsploit → MSF → recon
+- **Scope guard** — all scans restricted to authorized CIDR ranges
+- **Audit log** — every action timestamped and logged append-only
 
 ---
 
@@ -42,12 +59,13 @@ Fenrir is a modern AI-powered network security scanner inspired by Armitage — 
 | Layer | Technology |
 |---|---|
 | Frontend | React 18 + Vite + Zustand |
+| Fonts | Orbitron (headers) + Rajdhani (UI) + Share Tech Mono (terminal) |
 | Backend | FastAPI + Python 3.12 |
-| AI | OpenRouter — DeepSeek Chat (~$0.02 per full engagement) |
-| Scanning | nmap, nuclei, subfinder, whois |
+| AI | OpenRouter — DeepSeek Chat (~$0.02 per full scan) |
+| Network scanning | nmap (ARP sweep, OS detection, service scan) |
+| Vuln scanning | nuclei + NVD API |
 | Exploit lookup | searchsploit (exploit-db), Metasploit |
 | Database | SQLite |
-| Container | Docker |
 
 ---
 
@@ -56,53 +74,52 @@ Fenrir is a modern AI-powered network security scanner inspired by Armitage — 
 ```
 fenrir/
 ├── backend/
-│   ├── main.py            # FastAPI entrypoint, all API endpoints, AI summarize
-│   ├── config.py          # Settings, scope validation
-│   ├── audit.py           # Append-only action logger
-│   ├── database.py        # SQLite + SQLAlchemy models
-│   ├── websocket.py       # WebSocket live streaming
+│   ├── main.py               # FastAPI — all endpoints
+│   ├── config.py             # Settings, scope validation
+│   ├── audit.py              # Append-only action logger
+│   ├── database.py           # SQLite + SQLAlchemy models
+│   ├── websocket.py          # Live WebSocket broadcast
 │   └── phases/
-│       ├── dns_whois.py   # Phase 1 — DNS, WHOIS, subfinder
-│       ├── port_scan.py   # Phase 2 — two-phase nmap (ping sweep + deep scan)
-│       ├── vuln_scan.py   # Phase 3 — nuclei + NVD API enrichment
-│       └── exploit.py     # Phase 4 — searchsploit + Metasploit lookup
+│       ├── host_discovery.py # Phase 1 — ARP sweep + parallel OS detection
+│       ├── port_scan.py      # Phase 2 — deep nmap, skips ping sweep
+│       ├── vuln_scan.py      # Phase 3 — nuclei + NVD, deduplication
+│       └── exploit.py        # Phase 4 — searchsploit + Metasploit
 ├── ai/
-│   ├── analyst.py         # OpenRouter finding analysis + prioritization
-│   └── reporter.py        # Structured pentest report generation
-├── frontend/
-│   └── src/
-│       ├── App.jsx                    # Phase router + WebSocket init
-│       ├── index.css                  # Global dark theme + fonts
-│       ├── store/fenrirStore.js       # Zustand global state
-│       ├── hooks/useWebSocket.js      # WebSocket connection + message routing
-│       ├── components/
-│       │   ├── Header.jsx             # Phase tabs, live counters, logo
-│       │   ├── HostCard.jsx           # Host card with OS icon, ports, vuln badge
-│       │   ├── Terminal.jsx           # Live tool output console
-│       │   └── AISummaryPanel.jsx     # AI analysis display per phase
-│       └── pages/
-│           ├── Phase1Detection.jsx    # Network discovery + host grid
-│           ├── Phase2PortScan.jsx     # Host selection + port scanning
-│           ├── Phase3VulnScan.jsx     # Vuln scan + findings list + AI summary
-│           ├── Phase4Exploitation.jsx # Target/vuln picker + exploits + Metasploit
-│           └── Phase5Report.jsx       # Session picker + AI report + download
-├── reports/               # Generated pentest reports (auto-created)
-├── run.py                 # Backend entrypoint
-├── scope.txt              # Authorized CIDR ranges
-├── audit.log              # Append-only action log
-├── logo.png               # Project logo
-├── icon.png               # Project icon (used as favicon)
+│   ├── analyst.py            # Per-finding AI analysis, retry logic
+│   └── reporter.py           # Pentest report generation
+├── frontend/src/
+│   ├── App.jsx               # Phase router
+│   ├── index.css             # Global styles, fonts, animations
+│   ├── store/fenrirStore.js  # Zustand state
+│   ├── hooks/
+│   │   └── useWebSocket.js   # Singleton WS — no duplicate messages
+│   ├── components/
+│   │   ├── Header.jsx        # Phase tabs, live counters
+│   │   ├── HostCard.jsx      # Host card — OS icon, ports, severity
+│   │   ├── NetworkMap.jsx    # SVG topology map
+│   │   └── Terminal.jsx      # Filterable live console
+│   └── pages/
+│       ├── Phase1Detection.jsx   # ARP sweep, network map, AI summary
+│       ├── Phase2PortScan.jsx    # Sequential port scan + progress bar
+│       ├── Phase3VulnScan.jsx    # Vuln scan + per-finding AI analysis
+│       ├── Phase4Exploitation.jsx # Exploits + agent log + MSF modules
+│       └── Phase5Report.jsx      # AI pentest report + .md download
+├── reports/           # Generated reports (auto-created)
+├── start.sh           # Single command to start everything
+├── run.py             # Backend entrypoint
+├── scope.txt          # Authorized CIDR ranges
+├── audit.log          # Append-only action log
+├── logo.png
+├── icon.png
 ├── .env.example
-├── requirements.txt
-├── Dockerfile
-└── README.md
+└── requirements.txt
 ```
 
 ---
 
 ## Quickstart
 
-### 1. Clone and set up Python environment
+### 1. Clone and set up
 ```bash
 git clone https://github.com/finnmagnuskverndalen/fenrir.git
 cd fenrir
@@ -111,144 +128,116 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> Run `source venv/bin/activate` every time you open a new terminal.
-
 ### 2. Install scan tools
 ```bash
-# nmap and whois
 sudo apt install nmap whois -y
 sudo setcap cap_net_raw,cap_net_admin+eip $(which nmap)
 
-# subfinder and nuclei (requires Go)
 sudo apt install golang-go -y
-go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 echo 'export PATH=$PATH:$HOME/go/bin' >> ~/.bashrc && source ~/.bashrc
 nuclei -update-templates
 
-# searchsploit
 sudo git clone https://gitlab.com/exploit-database/exploitdb.git /opt/exploitdb
 sudo ln -sf /opt/exploitdb/searchsploit /usr/local/bin/searchsploit
 git config --global --add safe.directory /opt/exploitdb
 
-# increase file watcher limit (required for Vite)
+# Fix Linux file watcher limit
 echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
 
-### 3. Configure environment
+### 3. Configure
 ```bash
 cp .env.example .env
 nano .env
+# OPENROUTER_API_KEY=your_key    — get free at https://openrouter.ai/keys
+# OPENROUTER_MODEL=deepseek/deepseek-chat
+# DRY_RUN=false
 ```
 
-Key settings:
-```
-OPENROUTER_API_KEY=your_key_here     # get free at https://openrouter.ai/keys
-OPENROUTER_MODEL=deepseek/deepseek-chat
-DRY_RUN=false                        # set true to preview without executing
-ALLOW_PUBLIC_IPS=false
-```
-
-### 4. Set your authorized scope
+### 4. Set scope
 ```bash
 ip route | grep src
 echo "192.168.x.0/24" > scope.txt
 ```
 
-### 5. Start the backend
+### 5. Launch
 ```bash
-python run.py
+./start.sh
 ```
 
-### 6. Start the frontend (new terminal)
-```bash
-cd ~/fenrir && source venv/bin/activate
-cd frontend
-npm install
-npm run dev
-```
-
-### 7. Open the UI
-Navigate to **http://localhost:5173**
-
-Work through the phases in order: Detection → Port Scan → Vuln Scan → Exploitation → Report
+Open **http://localhost:5173**
 
 ---
 
-## Phase walkthrough
+## Workflow
 
-**Phase 01 — Detection**
-Enter your CIDR range (e.g. `192.168.1.0/24`), disable dry-run, hit DETECT. Fenrir runs a fast nmap ping sweep to find live hosts. Each host appears as a card with its OS icon. Takes ~30 seconds for a /24.
-
-**Phase 02 — Port Scan**
-Click host cards to select targets (or SELECT ALL). Hit SCAN. Fenrir runs deep nmap service detection on each selected host. Port pills appear on the host cards as results stream in.
-
-**Phase 03 — Vuln Scan**
-Select hosts, hit SCAN. nuclei runs its full template library against all HTTP services. Findings appear in the right panel sorted by severity. AI summarizes the risk landscape.
-
-**Phase 04 — Exploitation**
-Select a target host on the left, select a critical/high finding. searchsploit looks up matching exploits. Metasploit searches for modules. AI explains the exploit chain. Hit RUN (DRY) to generate the exact command. Set `DRY_RUN=false` in `.env` to execute for real against in-scope targets.
-
-**Phase 05 — Report**
-Select your scan session, hit GENERATE REPORT. DeepSeek writes a full professional pentest report in ~30 seconds. Download as `.md`.
+```
+Phase 1  Enter CIDR → DETECT
+         ARP sweep finds all hosts in ~2 seconds
+         Parallel OS fingerprinting in batches of 5
+         Network map appears with host nodes
+         AI summarizes what was found
+         ↓
+Phase 2  Select hosts → SCAN (one at a time, progress bar)
+         Deep nmap: services, versions, banners
+         Ports appear on host cards
+         ↓
+Phase 3  Select hosts → SCAN VULN (one at a time)
+         nuclei runs against HTTP services
+         NVD enriches findings with CVSS scores
+         AI analyzes each critical/high finding
+         ↓
+Phase 4  Select host + vulnerability
+         searchsploit looks up exploit-db matches
+         Metasploit searches for modules
+         AI runs exploit recon
+         Agent log shows each step
+         RUN generates dry-run command
+         ↓
+Phase 5  Select session → GENERATE REPORT
+         AI writes full pentest report
+         Download as .md
+```
 
 ---
 
 ## Recommended AI models
 
-| Model | Cost per 1M tokens | Notes |
+| Model | Cost/1M tokens | Notes |
 |---|---|---|
-| `deepseek/deepseek-chat` | $0.32 / $0.89 | **Recommended** — best value, strong security knowledge |
-| `meta-llama/llama-3.3-70b-instruct` | Free | Zero cost, good for testing |
-| `google/gemini-2.0-flash-exp` | Free | Zero cost, fast |
+| `deepseek/deepseek-chat` | $0.32 / $0.89 | **Recommended** |
+| `meta-llama/llama-3.3-70b-instruct` | Free | Zero cost |
+| `google/gemini-2.0-flash-exp` | Free | Fast |
 
-A full engagement with 47 findings costs approximately **$0.02** with DeepSeek.
+Full scan with 47 findings ≈ **$0.02** with DeepSeek.
 
 ---
 
 ## Safety
 
-> **This tool is for authorized testing only. Only scan networks and systems you own or have explicit written permission to test.**
+> **Authorized testing only. Only scan networks you own or have explicit written permission to test.**
 
-- `scope.txt` restricts all scans to authorized CIDR ranges — out-of-scope targets return 403
-- Duplicate scans on same target blocked server-side
+- `scope.txt` restricts all targets — out-of-scope returns 403
+- Duplicate scans blocked server-side
 - All actions logged append-only to `audit.log`
-- Exploitation is **dry-run only** by default
-- Set `DRY_RUN=false` in `.env` to enable real execution
-- Public IPs blocked unless `ALLOW_PUBLIC_IPS=true`
-
----
-
-## API reference
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/scan/start` | POST | Start a scan session |
-| `/api/sessions` | GET | List scan sessions |
-| `/api/findings` | GET | All findings (filter `?severity=high`) |
-| `/api/exploits/lookup` | POST | searchsploit lookup |
-| `/api/exploits/metasploit/{cve}` | GET | Metasploit module search |
-| `/api/exploits/run` | POST | Run exploit (dry-run by default) |
-| `/api/reports/generate/{id}` | POST | Generate AI pentest report |
-| `/api/reports/list` | GET | List saved reports |
-| `/api/ai/summarize` | POST | AI phase summarization |
-| `/api/audit` | GET | Audit log |
-| `/api/health` | GET | Health check |
+- Exploitation dry-run only by default — set `DRY_RUN=false` in `.env` to enable
 
 ---
 
 ## Milestones
 
-- [x] **Milestone 1** — Project scaffold
-- [x] **Milestone 2** — Backend core (FastAPI, SQLite, WebSocket, scope guard, audit log)
-- [x] **Milestone 3** — Scan phases 1–3 (two-phase nmap, nuclei, NVD enrichment, live log)
-- [x] **Milestone 4** — AI analysis layer (DeepSeek via OpenRouter)
-- [x] **Milestone 5** — Frontend polish (expandable findings, host drilldown, markdown AI output)
-- [x] **Milestone 6** — Report generator (structured pentest report, exec summary, remediation roadmap)
-- [x] **Milestone 7** — Exploit layer (searchsploit, Metasploit module search, dry-run generator)
-- [x] **Milestone 8** — Fenrir v2 UI (Armitage-inspired 5-phase war room, live terminal, host cards, AI per phase)
-- [ ] **Milestone 9** — Docker packaging, API auth, PDF export
+- [x] M1 — Project scaffold
+- [x] M2 — Backend core (FastAPI, SQLite, WebSocket, scope guard, audit log)
+- [x] M3 — Scan phases (nmap, nuclei, NVD enrichment)
+- [x] M4 — AI analysis (DeepSeek via OpenRouter)
+- [x] M5 — Frontend polish (expandable findings, DB-backed)
+- [x] M6 — Report generator (structured pentest report, .md download)
+- [x] M7 — Exploit layer (searchsploit, Metasploit module search)
+- [x] M8 — Fenrir v2 UI (5-phase war room, live terminal, host cards)
+- [x] M9 — Stability + UX overhaul (singleton WS, deduplication, sequential scans, network map, terminal filters, per-finding AI, retry logic)
+- [ ] M10 — Docker, PDF export, API auth
 
 ---
 

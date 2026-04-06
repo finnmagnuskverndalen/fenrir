@@ -1,26 +1,22 @@
 import httpx
+import asyncio
 from backend import websocket as ws
 from backend.audit import log as audit_log
 from backend.config import OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_BASE_URL, AI_MAX_TOKENS
 from backend.database import SessionLocal, Finding
 
 
-SYSTEM_PROMPT = """You are Fenrir, an expert penetration tester and offensive security analyst.
-You are given structured scan results from a network security assessment.
-Your job is to:
-1. Prioritize findings by real-world exploitability — not just CVSS score
-2. Identify attack chains where multiple findings combine into a more serious risk
-3. Suggest specific, actionable next steps for each critical finding
-4. Write clearly for a technical audience
-
-Always remind the user that findings should only be acted on against authorized targets.
-Respond in structured markdown."""
+SYSTEM_PROMPT = """You are Fenrir, an expert penetration tester. Be concise and technical. Authorized testing only."""
 
 
 async def run(session_id: str, target: str, dry_run: bool):
-    """Phase 4 — AI analysis of all findings via OpenRouter."""
+    """AI analysis — per-finding for critical/high, bulk summary for rest."""
     await ws.emit("info", "ai", "Starting AI analysis of findings...")
     audit_log("PHASE_AI_START", target=target, dry_run=dry_run)
+
+    if not OPENROUTER_API_KEY:
+        await ws.emit("warn", "ai", "OPENROUTER_API_KEY not set — skipping AI analysis")
+        return
 
     db = SessionLocal()
     try:
@@ -29,52 +25,45 @@ async def run(session_id: str, target: str, dry_run: bool):
             await ws.emit("warn", "ai", "No findings to analyze.")
             return
 
-        findings_text = _format_findings(findings)
-
         if dry_run:
-            await ws.emit("warn", "ai", f"[DRY RUN] Would send {len(findings)} findings to {OPENROUTER_MODEL}")
+            await ws.emit("warn", "ai", f"[DRY RUN] Would analyze {len(findings)} findings")
             return
 
-        await ws.emit("info", "ai", f"Sending {len(findings)} findings to {OPENROUTER_MODEL}...")
+        analyzed = 0
+        crit_high = [f for f in findings if f.severity in ("critical", "high") and not f.ai_analysis]
 
-        analysis = await _call_openrouter(
-            system=SYSTEM_PROMPT,
-            user=f"Analyze these findings from a scan of {target}:\n\n{findings_text}",
-        )
+        for finding in crit_high:
+            await ws.emit("info", "ai", f"Analyzing: {finding.title[:60]}...")
+            try:
+                analysis = await _analyze_finding(finding, target)
+                if analysis:
+                    finding.ai_analysis = analysis
+                    db.commit()
+                    analyzed += 1
+            except Exception as e:
+                print(f"AI finding error [{finding.title}]: {type(e).__name__}: {e}", flush=True)
+            await asyncio.sleep(0.3)
 
-        # Save AI analysis back to each critical/high finding
-        for finding in findings:
-            if finding.severity in ("critical", "high"):
-                finding.ai_analysis = analysis
-        db.commit()
-
-        await ws.emit("ok", "ai", "AI analysis complete.", {"analysis": analysis})
-        audit_log("PHASE_AI_COMPLETE", target=target, detail=f"findings_analyzed={len(findings)}")
+        await ws.emit("ok", "ai", f"AI analysis complete. {analyzed} findings analyzed.")
+        audit_log("PHASE_AI_COMPLETE", target=target, detail=f"findings_analyzed={analyzed}")
 
     except Exception as e:
-        await ws.emit("warn", "ai", f"AI analysis skipped: {e}")
-        audit_log("PHASE_AI_ERROR", target=target, detail=str(e))
+        print(f"AI PHASE ERROR: {type(e).__name__}: {e}", flush=True)
+        await ws.emit("warn", "ai", f"AI error: {type(e).__name__}: {e}")
     finally:
         db.close()
 
 
-async def analyze_finding(finding_title: str, cve_id: str, description: str, target: str) -> str:
-    prompt = f"""Analyze this security finding:
+async def _analyze_finding(finding, target: str) -> str:
+    prompt = f"""Finding: {finding.title}
+CVE: {finding.cve_id or 'N/A'} | CVSS: {finding.cvss_score or 'N/A'} | Target: {target}
+Description: {(finding.description or '')[:300]}
 
-Title: {finding_title}
-CVE: {cve_id or 'N/A'}
-Description: {description}
-Target: {target}
-
-Provide:
-1. Plain-English explanation of the vulnerability
-2. Real-world impact if exploited
-3. Specific exploitation steps (for authorized testing only)
-4. Recommended remediation"""
-    return await _call_openrouter(system=SYSTEM_PROMPT, user=prompt)
+In 3 sentences: (1) what this vulnerability is, (2) how an attacker exploits it, (3) exact remediation."""
+    return await _call_openrouter(system=SYSTEM_PROMPT, user=prompt, max_tokens=300)
 
 
-async def _call_openrouter(system: str, user: str) -> str:
+async def _call_openrouter(system: str, user: str, max_tokens: int = 1000) -> str:
     if not OPENROUTER_API_KEY:
         return "OpenRouter API key not configured."
 
@@ -82,48 +71,36 @@ async def _call_openrouter(system: str, user: str) -> str:
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://github.com/finnmagnuskverndalen/fenrir",
-        "X-Title": "Fenrir - Network Security Scanner",
+        "X-Title": "Fenrir",
     }
-
     payload = {
         "model": OPENROUTER_MODEL,
-        "max_tokens": AI_MAX_TOKENS,
+        "max_tokens": max_tokens,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{OPENROUTER_BASE_URL}/chat/completions",
-                headers=headers,
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-    except httpx.HTTPStatusError as e:
-        error_body = e.response.text[:200] if e.response else "no body"
-        await ws.emit("error", "ai", f"OpenRouter HTTP {e.response.status_code}: {error_body}")
-        return f"API error {e.response.status_code}: {error_body}"
-    except httpx.TimeoutException:
-        await ws.emit("warn", "ai", "OpenRouter request timed out after 120s — try a faster model")
-        return "AI analysis timed out."
-    except Exception as e:
-        await ws.emit("error", "ai", f"AI call failed: {type(e).__name__}: {e}")
-        return f"AI analysis failed: {type(e).__name__}: {e}"
-
-
-def _format_findings(findings) -> str:
-    lines = []
-    for f in findings:
-        lines.append(
-            f"- [{f.severity.upper()}] {f.title}"
-            + (f" ({f.cve_id})" if f.cve_id else "")
-            + (f" — CVSS {f.cvss_score}" if f.cvss_score else "")
-            + (f"\n  Host: {f.host.ip}" if f.host else "")
-            + (f"\n  {f.description[:200]}" if f.description else "")
-        )
-    return "\n".join(lines)
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.post(
+                    f"{OPENROUTER_BASE_URL}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]["content"]
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                await asyncio.sleep(5 * (attempt + 1))
+                continue
+            print(f"OpenRouter HTTP {e.response.status_code}: {e.response.text[:200]}", flush=True)
+            raise
+        except httpx.TimeoutException:
+            if attempt < 2:
+                await asyncio.sleep(3)
+                continue
+            raise
+    raise Exception("Max retries exceeded")

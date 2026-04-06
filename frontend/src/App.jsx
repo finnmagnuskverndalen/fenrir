@@ -9,41 +9,20 @@ import Phase5Report from './pages/Phase5Report'
 import { useFenrir } from './store/fenrirStore'
 import { useWebSocket } from './hooks/useWebSocket'
 
-const phases = {
-  1: Phase1Detection,
-  2: Phase2PortScan,
-  3: Phase3VulnScan,
-  4: Phase4Exploitation,
-  5: Phase5Report,
-}
+const PHASES = { 1: Phase1Detection, 2: Phase2PortScan, 3: Phase3VulnScan, 4: Phase4Exploitation, 5: Phase5Report }
 
 export default function App() {
   useWebSocket()
   const { currentPhase } = useFenrir()
-  const PhaseComponent = phases[currentPhase] || Phase1Detection
+  const Phase = PHASES[currentPhase] || Phase1Detection
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      overflow: 'hidden',
-      background: 'var(--bg)',
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       <Header />
-      <div style={{
-        flex: 1,
-        overflow: 'hidden',
-        padding: '14px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 0,
-      }}>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <PhaseComponent />
-        </div>
+      <div style={{ flex: 1, overflow: 'hidden', padding: '12px 14px 0' }}>
+        <Phase />
       </div>
-      <Terminal height={170} />
+      <Terminal height={162} />
     </div>
   )
 }

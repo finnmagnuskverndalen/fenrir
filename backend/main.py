@@ -244,3 +244,16 @@ def health():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=DEBUG)
+
+
+@app.post("/api/ai/test")
+async def ai_test():
+    from ai.analyst import _call_openrouter
+    try:
+        result = await _call_openrouter(
+            system="You are a helpful assistant.",
+            user="Reply with just the word: WORKING"
+        )
+        return {"result": result, "status": "ok"}
+    except Exception as e:
+        return {"result": None, "status": "error", "error": f"{type(e).__name__}: {e}"}

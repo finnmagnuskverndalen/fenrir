@@ -6,8 +6,8 @@
   --red-glow: rgba(229,62,62,0.15);
   --red-border: rgba(229,62,62,0.3);
   --bg: #060608;
-  --bg2: #0c0c10;
-  --bg3: #111118;
+  --bg2: #0b0b0f;
+  --bg3: #101016;
   --bg4: #16161e;
   --border: rgba(255,255,255,0.06);
   --border-red: rgba(229,62,62,0.25);
@@ -25,31 +25,22 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: var(--body);
   font-size: 14px;
-  overflow: hidden;
-  height: 100vh;
 }
 
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
-
-.mono { font-family: var(--mono); }
-.display { font-family: var(--display); }
+::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
 
 @keyframes pulse-red {
   0%, 100% { box-shadow: 0 0 0 0 rgba(229,62,62,0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(229,62,62,0); }
-}
-
-@keyframes scan-line {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+  50% { box-shadow: 0 0 0 5px rgba(229,62,62,0); }
 }
 
 @keyframes blink {
@@ -58,23 +49,20 @@ body {
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slide-in {
-  from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 @keyframes flicker {
   0%,100% { opacity:1 }
-  92% { opacity:1 }
-  93% { opacity:0.4 }
+  93% { opacity:0.5 }
   94% { opacity:1 }
-  96% { opacity:0.6 }
-  97% { opacity:1 }
 }
 
-.animate-fade { animation: fade-in 0.2s ease forwards; }
-.animate-slide { animation: slide-in 0.2s ease forwards; }
+button { font-family: var(--body); }
+input, select { font-family: var(--body); }
