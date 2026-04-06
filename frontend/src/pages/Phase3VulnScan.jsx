@@ -46,8 +46,10 @@ export default function Phase3VulnScan() {
     addTerminalLine(`[INFO] [phase3] Starting vuln scan on ${selectedHosts.size} hosts`)
 
     try {
-      for (const ip of [...selectedHosts]) {
-        addTerminalLine(`[INFO] [phase3] nuclei → ${ip}`)
+      const targets = [...selectedHosts]
+      for (let i = 0; i < targets.length; i++) {
+        const ip = targets[i]
+        addTerminalLine(`[INFO] [phase3] nuclei → ${ip} (${i+1}/${targets.length})`)
         const res = await fetch('/api/scan/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -57,6 +59,15 @@ export default function Phase3VulnScan() {
           const d = await res.json()
           addTerminalLine(`[WARN] [phase3] ${ip}: ${d.detail}`)
         }
+        // Wait for this scan to complete before starting next
+        for (let w = 0; w < 90; w++) {
+          await new Promise(r => setTimeout(r, 2000))
+          try {
+            const health = await fetch('/api/health').then(r => r.json())
+            if (!health.active_scans?.includes(ip)) break
+          } catch {}
+        }
+        if (i < targets.length - 1) await new Promise(r => setTimeout(r, 1000))
       }
 
       // Poll for results
