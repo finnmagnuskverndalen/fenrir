@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import Header from './components/Header'
 import Terminal from './components/Terminal'
 import Phase1Detection from './pages/Phase1Detection'
@@ -17,12 +16,12 @@ export default function App() {
   const Phase = PHASES[currentPhase] || Phase1Detection
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background:'var(--bg-0)' }}>
       <Header />
-      <div style={{ flex: 1, overflow: 'hidden', padding: '12px 14px 0' }}>
+      <div style={{ flex:1, overflow:'hidden', padding:'16px 20px 0' }}>
         <Phase />
       </div>
-      <Terminal height={162} />
+      <Terminal height={165} />
     </div>
   )
 }
