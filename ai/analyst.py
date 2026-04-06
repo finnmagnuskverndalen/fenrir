@@ -32,8 +32,10 @@ async def run(session_id: str, target: str, dry_run: bool):
         findings_text = _format_findings(findings)
 
         if dry_run:
-            await ws.emit("warn", "ai", f"[DRY RUN] Would send {len(findings)} findings to {OPENROUTER_MODEL} for analysis")
+            await ws.emit("warn", "ai", f"[DRY RUN] Would send {len(findings)} findings to {OPENROUTER_MODEL}")
             return
+
+        await ws.emit("info", "ai", f"Sending {len(findings)} findings to {OPENROUTER_MODEL}...")
 
         analysis = await _call_openrouter(
             system=SYSTEM_PROMPT,
@@ -49,12 +51,14 @@ async def run(session_id: str, target: str, dry_run: bool):
         await ws.emit("ok", "ai", "AI analysis complete.", {"analysis": analysis})
         audit_log("PHASE_AI_COMPLETE", target=target, detail=f"findings_analyzed={len(findings)}")
 
+    except Exception as e:
+        await ws.emit("warn", "ai", f"AI analysis skipped: {e}")
+        audit_log("PHASE_AI_ERROR", target=target, detail=str(e))
     finally:
         db.close()
 
 
 async def analyze_finding(finding_title: str, cve_id: str, description: str, target: str) -> str:
-    """Get AI analysis for a single finding."""
     prompt = f"""Analyze this security finding:
 
 Title: {finding_title}
@@ -67,14 +71,12 @@ Provide:
 2. Real-world impact if exploited
 3. Specific exploitation steps (for authorized testing only)
 4. Recommended remediation"""
-
     return await _call_openrouter(system=SYSTEM_PROMPT, user=prompt)
 
 
 async def _call_openrouter(system: str, user: str) -> str:
-    """Call OpenRouter API and return the response text."""
     if not OPENROUTER_API_KEY:
-        return "OpenRouter API key not configured. Add OPENROUTER_API_KEY to your .env file."
+        return "OpenRouter API key not configured."
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -93,7 +95,7 @@ async def _call_openrouter(system: str, user: str) -> str:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(
                 f"{OPENROUTER_BASE_URL}/chat/completions",
                 headers=headers,
@@ -103,11 +105,15 @@ async def _call_openrouter(system: str, user: str) -> str:
             data = resp.json()
             return data["choices"][0]["message"]["content"]
     except httpx.HTTPStatusError as e:
-        await ws.emit("error", "ai", f"OpenRouter API error: {e.response.status_code}")
-        return f"API error: {e.response.status_code}"
+        error_body = e.response.text[:200] if e.response else "no body"
+        await ws.emit("error", "ai", f"OpenRouter HTTP {e.response.status_code}: {error_body}")
+        return f"API error {e.response.status_code}: {error_body}"
+    except httpx.TimeoutException:
+        await ws.emit("warn", "ai", "OpenRouter request timed out after 120s — try a faster model")
+        return "AI analysis timed out."
     except Exception as e:
-        await ws.emit("error", "ai", f"AI call failed: {e}")
-        return f"AI analysis failed: {e}"
+        await ws.emit("error", "ai", f"AI call failed: {type(e).__name__}: {e}")
+        return f"AI analysis failed: {type(e).__name__}: {e}"
 
 
 def _format_findings(findings) -> str:
