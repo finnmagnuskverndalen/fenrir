@@ -97,38 +97,53 @@ async def _run_nuclei(session_id: str, target: str) -> list:
                 if line.strip():
                     await ws.emit("info", "vulns", f"nuclei: {line.strip()[:120]}")
 
-        # Parse from JSON export file first (more reliable)
+        # Parse results — try JSON export file first, then stdout
         seen = set()
+
+        async def parse_result(result):
+            if not isinstance(result, dict):
+                return
+            finding = _parse_nuclei_result(result, target)
+            key = f"{finding['title']}|{finding['host']}"
+            if key not in seen:
+                seen.add(key)
+                findings.append(finding)
+                await ws.emit("warn", "vulns", f"[{finding['severity'].upper()}] {finding['title']}")
+
         if os.path.exists("/tmp/fenrir_nuclei_out.json"):
-            with open("/tmp/fenrir_nuclei_out.json") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
+            try:
+                with open("/tmp/fenrir_nuclei_out.json") as jf:
+                    raw = jf.read().strip()
+                if raw:
+                    # Try as JSON array first
                     try:
-                        result = json.loads(line)
-                        finding = _parse_nuclei_result(result, target)
-                        key = f"{finding['title']}|{finding['host']}"
-                        if key not in seen:
-                            seen.add(key)
-                            findings.append(finding)
-                            await ws.emit("warn", "vulns", f"[{finding['severity'].upper()}] {finding['title']}")
+                        data = json.loads(raw)
+                        if isinstance(data, list):
+                            for item in data:
+                                await parse_result(item)
+                        elif isinstance(data, dict):
+                            await parse_result(data)
                     except json.JSONDecodeError:
-                        continue
+                        # Fall back to newline-delimited JSON
+                        for line in raw.splitlines():
+                            line = line.strip().rstrip(",")
+                            if not line or line in ("[", "]"):
+                                continue
+                            try:
+                                await parse_result(json.loads(line))
+                            except json.JSONDecodeError:
+                                continue
+            except Exception as e:
+                print(f"JSON export parse error: {e}", flush=True)
 
         # Also parse stdout as fallback
         if not findings and stdout_text:
             for line in stdout_text.splitlines():
-                if not line.strip():
+                line = line.strip()
+                if not line:
                     continue
                 try:
-                    result = json.loads(line)
-                    finding = _parse_nuclei_result(result, target)
-                    key = f"{finding['title']}|{finding['host']}"
-                    if key not in seen:
-                        seen.add(key)
-                        findings.append(finding)
-                        await ws.emit("warn", "vulns", f"[{finding['severity'].upper()}] {finding['title']}")
+                    await parse_result(json.loads(line))
                 except json.JSONDecodeError:
                     continue
 
@@ -200,14 +215,23 @@ async def _build_nuclei_targets(target: str) -> list:
 
 
 def _extract_cve(result: dict) -> str | None:
-    for ref in result.get("info", {}).get("reference", []):
-        if "CVE-" in str(ref).upper():
-            parts = str(ref).upper().split("CVE-")
+    refs = result.get("info", {}).get("reference", [])
+    if isinstance(refs, str):
+        refs = [refs]
+    for ref in refs:
+        ref_str = ref if isinstance(ref, str) else str(ref.get("url", ref) if isinstance(ref, dict) else ref)
+        if "CVE-" in ref_str.upper():
+            parts = ref_str.upper().split("CVE-")
             if len(parts) > 1:
-                return "CVE-" + parts[1].split()[0].strip("/#")
-    for tag in result.get("info", {}).get("tags", []):
+                cve = parts[1].split()[0].strip("/#,;)")
+                if cve:
+                    return "CVE-" + cve
+    tags = result.get("info", {}).get("tags", [])
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",")]
+    for tag in tags:
         if str(tag).upper().startswith("CVE-"):
-            return str(tag).upper()
+            return str(tag).upper().strip()
     return None
 
 
