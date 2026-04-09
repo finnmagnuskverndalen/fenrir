@@ -3,30 +3,31 @@ import { useFenrir } from '../store/fenrirStore'
 const osIcon = (os) => {
   if (!os) return null
   const o = os.toLowerCase()
-  if (o.includes('windows')) return '⊞'
-  if (o.includes('linux') || o.includes('ubuntu') || o.includes('debian')) return 'Ⅎ'
-  if (o.includes('android') || o.includes('mobile') || o.includes('pixel')) return '▣'
-  if (o.includes('apple') || o.includes('ios') || o.includes('mac')) return ''
-  if (o.includes('router') || o.includes('network') || o.includes('cisco') || o.includes('zyxel')) return '⬡'
-  if (o.includes('camera') || o.includes('c200')) return '◉'
-  if (o.includes('iot') || o.includes('esp') || o.includes('embedded') || o.includes('lwip')) return '⚡'
-  if (o.includes('home assistant')) return '⌂'
-  if (o.includes('sbc') || o.includes('lepotato') || o.includes('raspberry')) return '◈'
-  return '○'
+  if (o.includes('windows')) return '[WIN]'
+  if (o.includes('linux') || o.includes('ubuntu') || o.includes('debian')) return '[LNX]'
+  if (o.includes('android') || o.includes('mobile') || o.includes('pixel')) return '[MOB]'
+  if (o.includes('apple') || o.includes('ios') || o.includes('mac')) return '[MAC]'
+  if (o.includes('router') || o.includes('network') || o.includes('cisco') || o.includes('zyxel')) return '[RTR]'
+  if (o.includes('camera') || o.includes('c200')) return '[CAM]'
+  if (o.includes('iot') || o.includes('esp') || o.includes('embedded') || o.includes('lwip')) return '[IOT]'
+  if (o.includes('home assistant')) return '[HAS]'
+  if (o.includes('sbc') || o.includes('lepotato') || o.includes('raspberry')) return '[SBC]'
+  return '[???]'
 }
 
-const sevBg = {
-  critical: 'rgba(255,59,59,0.15)',
-  high:     'rgba(249,115,22,0.15)',
-  medium:   'rgba(245,158,11,0.12)',
-  low:      'rgba(34,197,94,0.12)',
-}
 const sevColor = {
-  critical: '#ff3b3b',
-  high:     '#f97316',
+  critical: '#ff2020',
+  high:     '#ff5500',
   medium:   '#f59e0b',
-  low:      '#22c55e',
-  info:     '#3b82f6',
+  low:      '#883333',
+  info:     'rgba(229,62,62,0.5)',
+}
+const sevBg = {
+  critical: 'rgba(255,32,32,0.12)',
+  high:     'rgba(255,85,0,0.1)',
+  medium:   'rgba(245,158,11,0.1)',
+  low:      'rgba(136,51,51,0.12)',
+  info:     'rgba(229,62,62,0.06)',
 }
 
 export default function HostCard({ host, compact = false, onClick }) {
@@ -47,85 +48,94 @@ export default function HostCard({ host, compact = false, onClick }) {
   const icon = osIcon(host.os_guess)
   const lastOctet = host.ip?.split('.').pop()
 
+  const borderColor = compromised
+    ? 'rgba(255,32,32,0.6)'
+    : selected
+    ? 'rgba(229,62,62,0.5)'
+    : 'var(--border)'
+
   return (
     <div
       onClick={handleClick}
       style={{
-        background: selected ? 'rgba(255,59,59,0.06)' : compromised ? 'rgba(255,59,59,0.08)' : 'var(--bg-2)',
-        border: `1px solid ${compromised ? 'rgba(255,59,59,0.3)' : selected ? 'rgba(255,59,59,0.2)' : 'var(--border)'}`,
-        borderRadius: 10,
-        padding: compact ? '10px 12px' : '14px 16px',
+        background: selected
+          ? 'rgba(229,62,62,0.05)'
+          : compromised
+          ? 'rgba(255,32,32,0.07)'
+          : 'var(--bg-2)',
+        border: `1px solid ${borderColor}`,
+        borderLeft: `3px solid ${compromised ? '#ff2020' : selected ? 'var(--red)' : 'var(--border)'}`,
+        borderRadius: 2,
+        padding: compact ? '8px 10px' : '12px 14px',
         cursor: currentPhase >= 2 ? 'pointer' : 'default',
         transition: 'border-color 0.15s, background 0.15s',
         animation: 'fadeUp 0.2s ease',
         position: 'relative',
         overflow: 'hidden',
+        boxShadow: compromised ? '0 0 16px rgba(255,32,32,0.08)' : selected ? '0 0 10px rgba(229,62,62,0.05)' : 'none',
       }}
     >
-      {/* Left accent bar when selected */}
-      {selected && (
-        <div style={{
-          position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
-          background: 'var(--red)', borderRadius: '10px 0 0 10px',
-        }} />
-      )}
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {/* Icon */}
         <div style={{
-          width: compact ? 32 : 38, height: compact ? 32 : 38,
-          borderRadius: 8,
-          background: compromised ? 'rgba(255,59,59,0.15)' : topVuln ? (sevBg[topVuln.severity] || 'var(--bg-3)') : 'var(--bg-3)',
-          border: `1px solid ${compromised ? 'rgba(255,59,59,0.25)' : 'var(--border)'}`,
+          width: compact ? 30 : 36, height: compact ? 30 : 36,
+          borderRadius: 2,
+          background: 'var(--bg-3)',
+          border: `1px solid ${compromised ? 'rgba(255,32,32,0.4)' : 'var(--border)'}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: compact ? 14 : 16, flexShrink: 0, color: 'var(--text-2)',
+          fontSize: compact ? 8 : 9, flexShrink: 0,
+          fontFamily: 'var(--mono)', fontWeight: 700,
+          color: compromised ? '#ff2020' : 'var(--text-3)',
+          letterSpacing: '-0.02em',
         }}>
-          {compromised ? '💀' : (icon || lastOctet)}
+          {compromised ? '[PWN]' : (icon || `.${lastOctet}`)}
         </div>
 
         {/* Info */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{
-              fontFamily: 'var(--mono)', fontSize: compact ? 12 : 13,
-              color: compromised ? 'var(--red)' : 'var(--text)',
-              fontWeight: 500,
+              fontFamily: 'var(--mono)', fontSize: compact ? 11 : 12,
+              color: compromised ? '#ff2020' : 'var(--text)',
+              fontWeight: 700,
+              textShadow: compromised ? '0 0 10px rgba(255,32,32,0.5)' : 'none',
             }}>
               {host.ip}
             </span>
             {compromised && (
               <span style={{
-                fontSize: 9, padding: '1px 6px', borderRadius: 4,
-                background: 'rgba(255,59,59,0.2)', color: 'var(--red)',
-                fontWeight: 600, letterSpacing: '0.05em',
+                fontSize: 8, padding: '1px 5px', borderRadius: 2,
+                background: 'rgba(255,32,32,0.15)', color: '#ff2020',
+                fontWeight: 700, letterSpacing: '0.08em',
+                boxShadow: '0 0 8px rgba(255,32,32,0.3)',
               }}>PWNED</span>
             )}
           </div>
           {host.hostname && (
-            <div style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {host.hostname}
             </div>
           )}
           {host.os_guess && (
-            <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 9, color: 'var(--text-4)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.03em' }}>
               {host.os_guess.slice(0, 35)}
             </div>
           )}
         </div>
 
         {/* Right badges */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
           {host.ports?.length > 0 && (
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-3)' }}>
-              {host.ports.length} ports
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.05em' }}>
+              {host.ports.length}p
             </span>
           )}
           {topVuln && (
             <span style={{
-              fontSize: 9, padding: '2px 7px', borderRadius: 4, fontWeight: 600,
+              fontSize: 8, padding: '2px 6px', borderRadius: 2, fontWeight: 700,
               background: sevBg[topVuln.severity] || 'var(--bg-3)',
               color: sevColor[topVuln.severity] || 'var(--text-3)',
-              letterSpacing: '0.05em',
+              letterSpacing: '0.08em',
             }}>
               {topVuln.severity.toUpperCase()}
             </span>
@@ -135,20 +145,21 @@ export default function HostCard({ host, compact = false, onClick }) {
 
       {/* Port pills */}
       {!compact && host.ports?.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 10 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 8 }}>
           {host.ports.slice(0, 6).map((p, i) => (
             <span key={i} style={{
-              fontFamily: 'var(--mono)', fontSize: 9,
-              padding: '2px 7px', borderRadius: 4,
+              fontFamily: 'var(--mono)', fontSize: 8,
+              padding: '2px 6px', borderRadius: 2,
               background: 'var(--bg-3)', border: '1px solid var(--border)',
-              color: 'var(--green)',
+              color: 'var(--text-3)',
+              letterSpacing: '0.04em',
             }}>
-              {p.port}{p.service ? ` ${p.service}` : ''}
+              {p.port}{p.service ? `/${p.service}` : ''}
             </span>
           ))}
           {host.ports.length > 6 && (
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-3)', padding: '2px 4px' }}>
-              +{host.ports.length - 6} more
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 8, color: 'var(--text-4)', padding: '2px 3px' }}>
+              +{host.ports.length - 6}
             </span>
           )}
         </div>

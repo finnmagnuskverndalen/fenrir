@@ -1,28 +1,30 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
 
 :root {
-  --red: #ff3b3b;
-  --red-soft: rgba(255,59,59,0.12);
-  --red-border: rgba(255,59,59,0.22);
-  --bg-0: #080a0e;
-  --bg-1: #0d1117;
-  --bg-2: #131820;
-  --bg-3: #181f2a;
-  --bg-4: #1e2535;
-  --border: rgba(255,255,255,0.07);
-  --border-subtle: rgba(255,255,255,0.04);
-  --text: #e2e8f0;
-  --text-2: #94a3b8;
-  --text-3: #4a5568;
-  --text-4: #2d3748;
-  --green: #22c55e;
-  --green-soft: rgba(34,197,94,0.12);
-  --amber: #f59e0b;
-  --amber-soft: rgba(245,158,11,0.12);
-  --blue: #3b82f6;
-  --blue-soft: rgba(59,130,246,0.1);
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'Inter', sans-serif;
+  --red:           #e53e3e;
+  --red-bright:    #ff2020;
+  --red-dim:       #991818;
+  --red-soft:      rgba(229,62,62,0.08);
+  --red-border:    rgba(229,62,62,0.35);
+  --bg-0:          #000000;
+  --bg-1:          #050505;
+  --bg-2:          #090909;
+  --bg-3:          #0e0e0e;
+  --bg-4:          #141414;
+  --border:        rgba(229,62,62,0.18);
+  --border-subtle: rgba(229,62,62,0.07);
+  --text:          #e53e3e;
+  --text-2:        rgba(229,62,62,0.72);
+  --text-3:        rgba(229,62,62,0.38);
+  --text-4:        rgba(229,62,62,0.16);
+  --green:         #22c55e;
+  --green-soft:    rgba(34,197,94,0.12);
+  --amber:         #f59e0b;
+  --amber-soft:    rgba(245,158,11,0.1);
+  --blue:          #e53e3e;
+  --blue-soft:     rgba(229,62,62,0.08);
+  --mono:          'JetBrains Mono', monospace;
+  --sans:          'JetBrains Mono', monospace;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,26 +33,44 @@ html, body, #root {
   height: 100%; overflow: hidden;
   background: var(--bg-0);
   color: var(--text);
-  font-family: var(--sans);
+  font-family: var(--mono);
   font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-::-webkit-scrollbar { width: 4px; height: 4px; }
+/* CRT scanlines */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.05) 2px,
+    rgba(0,0,0,0.05) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(229,62,62,0.35); border-radius: 1px; }
 
-a { color: var(--blue); text-decoration: none; }
-button { font-family: var(--sans); cursor: pointer; }
-input, select { font-family: var(--sans); }
+a { color: var(--red); text-decoration: none; }
+a:hover { color: var(--red-bright); }
+button { font-family: var(--mono); cursor: pointer; }
+input, select { font-family: var(--mono); }
+input::placeholder { color: var(--text-4); }
 
-/* Severity colors */
-.sev-critical { color: #ff3b3b; }
-.sev-high     { color: #f97316; }
+/* Severity */
+.sev-critical { color: #ff2020; }
+.sev-high     { color: #ff5500; }
 .sev-medium   { color: #f59e0b; }
-.sev-low      { color: #22c55e; }
-.sev-info     { color: #3b82f6; }
+.sev-low      { color: #883333; }
+.sev-info     { color: rgba(229,62,62,0.5); }
 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(6px); }
@@ -58,7 +78,7 @@ input, select { font-family: var(--sans); }
 }
 @keyframes pulse {
   0%,100% { opacity: 1; }
-  50%      { opacity: 0.4; }
+  50%      { opacity: 0.3; }
 }
 @keyframes blink {
   0%,100% { opacity: 1; }
@@ -70,4 +90,18 @@ input, select { font-family: var(--sans); }
 @keyframes shimmer {
   0%   { background-position: -200% center; }
   100% { background-position:  200% center; }
+}
+@keyframes scanline {
+  0%   { transform: translateY(-100%); opacity: 0.6; }
+  100% { transform: translateY(100vh);  opacity: 0; }
+}
+@keyframes glitch {
+  0%,88%,100% { transform: translateX(0); clip-path: none; }
+  89% { transform: translateX(-3px); clip-path: inset(10% 0 60% 0); }
+  91% { transform: translateX(3px);  clip-path: inset(60% 0 10% 0); }
+  93% { transform: translateX(-1px); clip-path: none; }
+}
+@keyframes bootIn {
+  from { opacity: 0; transform: scaleY(0.02); }
+  to   { opacity: 1; transform: scaleY(1); }
 }
