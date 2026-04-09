@@ -2,14 +2,15 @@ import { useState, useEffect } from 'react'
 import { useFenrir } from '../store/fenrirStore'
 
 const PANEL = { width: 270, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 0 }
-const LABEL = { fontSize: 8, color: 'var(--text-4)', letterSpacing: '0.1em', marginBottom: 5, display: 'block' }
+const LABEL = { fontSize: 9, color: '#c8c8c8', letterSpacing: '0.1em', marginBottom: 6, display: 'block', fontWeight: 700 }
 const INPUT = {
   width: '100%', boxSizing: 'border-box',
-  background: 'var(--bg-0)', border: '1px solid var(--border)', borderRadius: 2,
-  color: 'var(--text)', fontFamily: 'var(--mono)', fontSize: 11, padding: '6px 8px',
+  background: '#0d0d0d', border: '1px solid rgba(229,62,62,0.35)', borderRadius: 2,
+  color: '#e8e8e8', fontFamily: 'var(--mono)', fontSize: 12, padding: '8px 10px',
   outline: 'none',
 }
-const SECTION = { marginBottom: 18 }
+const HINT = { fontSize: 10, color: 'rgba(200,200,200,0.45)', marginTop: 5, lineHeight: 1.6 }
+const SECTION = { marginBottom: 22 }
 
 export default function PhaseSettings() {
   const { settings, setSettings } = useFenrir()
@@ -110,7 +111,7 @@ export default function PhaseSettings() {
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--red)', animation: 'pulse 1.2s infinite', boxShadow: '0 0 6px var(--red)' }} />
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-2)', letterSpacing: '0.12em' }}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, color: '#c8c8c8', letterSpacing: '0.12em' }}>
               PHASE_00 // CONFIG
             </span>
           </div>
@@ -121,17 +122,17 @@ export default function PhaseSettings() {
             <div style={{ display: 'flex', gap: 4 }}>
               {['openrouter', 'ollama'].map(p => (
                 <button key={p} onClick={() => patch('provider', p)} style={{
-                  flex: 1, height: 28, borderRadius: 2, cursor: 'pointer',
-                  fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-                  border: `1px solid ${local.provider === p ? 'var(--red-border)' : 'var(--border)'}`,
-                  background: local.provider === p ? 'rgba(229,62,62,0.1)' : 'transparent',
-                  color: local.provider === p ? 'var(--red)' : 'var(--text-4)',
+                  flex: 1, height: 30, borderRadius: 2, cursor: 'pointer',
+                  fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+                  border: `1px solid ${local.provider === p ? 'var(--red-border)' : 'rgba(229,62,62,0.2)'}`,
+                  background: local.provider === p ? 'rgba(229,62,62,0.12)' : '#0d0d0d',
+                  color: local.provider === p ? 'var(--red)' : '#888',
                 }}>
                   {p === 'openrouter' ? 'OPENROUTER' : '[*] OLLAMA'}
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 8, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.6 }}>
+            <div style={HINT}>
               {local.provider === 'openrouter'
                 ? 'Cloud API · requires key · 200+ models'
                 : 'Local inference · no key · private'}
@@ -154,8 +155,8 @@ export default function PhaseSettings() {
           <button onClick={testConnection} disabled={testing} style={{
             ...btnBase,
             background: 'transparent',
-            border: '1px solid var(--border)',
-            color: testing ? 'var(--text-4)' : 'var(--text-3)',
+            border: '1px solid rgba(229,62,62,0.25)',
+            color: testing ? '#555' : '#aaa',
             opacity: testing ? 0.6 : 1,
           }}>
             {testing ? '// TESTING...' : '[ TEST CONNECTION ]'}
@@ -185,7 +186,7 @@ export default function PhaseSettings() {
 
           {local.provider === 'openrouter' ? (
             <>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.12em', marginBottom: 24 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'rgba(229,62,62,0.6)', letterSpacing: '0.12em', marginBottom: 24 }}>
                 // OPENROUTER CONFIGURATION
               </div>
 
@@ -199,9 +200,7 @@ export default function PhaseSettings() {
                   style={INPUT}
                   autoComplete="off"
                 />
-                <div style={{ fontSize: 8, color: 'var(--text-4)', marginTop: 5 }}>
-                  Get a free key at openrouter.ai/keys
-                </div>
+                <div style={HINT}>Get a free key at openrouter.ai/keys</div>
               </div>
 
               <div style={SECTION}>
@@ -212,9 +211,7 @@ export default function PhaseSettings() {
                   placeholder="meta-llama/llama-3.3-70b-instruct"
                   style={INPUT}
                 />
-                <div style={{ fontSize: 8, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.7 }}>
-                  deepseek/deepseek-chat · meta-llama/llama-3.3-70b-instruct (free) · google/gemini-2.0-flash-exp (free)
-                </div>
+                <div style={HINT}>deepseek/deepseek-chat · meta-llama/llama-3.3-70b-instruct (free) · google/gemini-2.0-flash-exp (free)</div>
               </div>
 
               <div style={SECTION}>
@@ -230,7 +227,7 @@ export default function PhaseSettings() {
             </>
           ) : (
             <>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.12em', marginBottom: 24 }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'rgba(229,62,62,0.6)', letterSpacing: '0.12em', marginBottom: 24 }}>
                 // OLLAMA CONFIGURATION
               </div>
 
@@ -242,9 +239,7 @@ export default function PhaseSettings() {
                   placeholder="http://localhost:11434"
                   style={INPUT}
                 />
-                <div style={{ fontSize: 8, color: 'var(--text-4)', marginTop: 5 }}>
-                  Default: http://localhost:11434 · Install at ollama.com
-                </div>
+                <div style={HINT}>Default: http://localhost:11434 · Install at ollama.com</div>
               </div>
 
               <div style={SECTION}>
@@ -258,8 +253,8 @@ export default function PhaseSettings() {
                   />
                   <button onClick={fetchOllamaModels} disabled={fetchingModels} style={{
                     height: 30, padding: '0 12px', borderRadius: 2, cursor: 'pointer', flexShrink: 0,
-                    background: 'transparent', border: '1px solid var(--border)',
-                    color: 'var(--text-3)', fontFamily: 'var(--mono)', fontSize: 9,
+                    background: '#0d0d0d', border: '1px solid rgba(229,62,62,0.35)',
+                    color: '#aaa', fontFamily: 'var(--mono)', fontSize: 10,
                     opacity: fetchingModels ? 0.5 : 1,
                   }}>
                     {fetchingModels ? '...' : '[FETCH]'}
@@ -276,16 +271,14 @@ export default function PhaseSettings() {
                         fontFamily: 'var(--mono)', letterSpacing: '0.04em',
                         background: local.ollama_model === m ? 'rgba(229,62,62,0.1)' : 'var(--bg-3)',
                         border: `1px solid ${local.ollama_model === m ? 'var(--red-border)' : 'var(--border)'}`,
-                        color: local.ollama_model === m ? 'var(--red)' : 'var(--text-3)',
+                        color: local.ollama_model === m ? 'var(--red)' : '#aaa',
                       }}>
                         {m}
                       </button>
                     ))}
                   </div>
                 )}
-                <div style={{ fontSize: 8, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.7 }}>
-                  Recommended: llama3.2 · mistral · deepseek-r1 · qwen2.5-coder
-                </div>
+                <div style={HINT}>Recommended: llama3.2 · mistral · deepseek-r1 · qwen2.5-coder</div>
               </div>
 
               <div style={SECTION}>
