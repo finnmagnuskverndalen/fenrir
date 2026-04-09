@@ -93,9 +93,9 @@ export default function Terminal({ height = 160 }) {
           const rest = line.text.replace(/^\[\w+\] /, '').replace(/^\[\w+\] /, '')
           return (
             <div key={i} style={{ display: 'flex', gap: 10, fontFamily: 'var(--mono)', fontSize: 11, lineHeight: 1.7 }}>
-              <span style={{ color: 'var(--text-4)', flexShrink: 0, minWidth: 56 }}>{line.ts}</span>
+              <span style={{ color: '#555', flexShrink: 0, minWidth: 56 }}>{line.ts}</span>
               <span style={{ color, flexShrink: 0, minWidth: 40, fontWeight: 700, textShadow: `0 0 8px ${color}40` }}>{level}</span>
-              <span style={{ color: 'var(--text-2)' }}>{rest}</span>
+              <span style={{ color: '#c8c8c8' }}>{rest}</span>
             </div>
           )
         })}

@@ -9,24 +9,24 @@ function Markdown({ text }) {
     <div>
       {text.split('\n').map((line, i) => {
         if (line.startsWith('# '))   return <h1 key={i} style={{ fontFamily:'var(--mono)', color:'var(--red)', fontSize:16, fontWeight:700, marginTop:24, marginBottom:10, paddingBottom:8, borderBottom:'1px solid var(--border)', letterSpacing:'0.08em' }}>{line.replace(/^# /,'')}</h1>
-        if (line.startsWith('## '))  return <h2 key={i} style={{ fontFamily:'var(--mono)', color:'var(--text-2)', fontSize:13, fontWeight:700, marginTop:18, marginBottom:6, letterSpacing:'0.08em' }}>{line.replace(/^## /,'')}</h2>
-        if (line.startsWith('### ')) return <h3 key={i} style={{ fontFamily:'var(--mono)', color:'var(--text-2)', fontSize:12, fontWeight:700, marginTop:12, marginBottom:4, letterSpacing:'0.06em' }}>{line.replace(/^### /,'')}</h3>
+        if (line.startsWith('## '))  return <h2 key={i} style={{ fontFamily:'var(--mono)', color:'#e0e0e0', fontSize:13, fontWeight:700, marginTop:18, marginBottom:6, letterSpacing:'0.08em' }}>{line.replace(/^## /,'')}</h2>
+        if (line.startsWith('### ')) return <h3 key={i} style={{ fontFamily:'var(--mono)', color:'#c8c8c8', fontSize:12, fontWeight:700, marginTop:12, marginBottom:4, letterSpacing:'0.06em' }}>{line.replace(/^### /,'')}</h3>
         if (line.startsWith('- ') || line.startsWith('* ')) return (
-          <div key={i} style={{ display:'flex', gap:10, paddingLeft:12, color:'var(--text-2)', fontSize:12, lineHeight:1.8 }}>
+          <div key={i} style={{ display:'flex', gap:10, paddingLeft:12, color:'#c0c0c0', fontSize:12, lineHeight:1.8 }}>
             <span style={{ color:'var(--red)', flexShrink:0 }}>&gt;</span>
             <span dangerouslySetInnerHTML={{ __html: line.replace(/^[-*] /,'').replace(/\*\*(.*?)\*\*/g,'<strong style="color:var(--text)">$1</strong>') }} />
           </div>
         )
         if (/^\d+\. /.test(line)) return (
-          <div key={i} style={{ display:'flex', gap:10, paddingLeft:12, color:'var(--text-2)', fontSize:12, lineHeight:1.8 }}>
-            <span style={{ color:'var(--text-3)', flexShrink:0 }}>{line.match(/^\d+/)[0]}.</span>
+          <div key={i} style={{ display:'flex', gap:10, paddingLeft:12, color:'#c0c0c0', fontSize:12, lineHeight:1.8 }}>
+            <span style={{ color:'#888', flexShrink:0 }}>{line.match(/^\d+/)[0]}.</span>
             <span dangerouslySetInnerHTML={{ __html: line.replace(/^\d+\. /,'').replace(/\*\*(.*?)\*\*/g,'<strong style="color:var(--text)">$1</strong>') }} />
           </div>
         )
-        if (line.startsWith('|')) return <div key={i} style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--text-2)', padding:'3px 0', borderBottom:'1px solid var(--border)' }}>{line}</div>
+        if (line.startsWith('|')) return <div key={i} style={{ fontFamily:'var(--mono)', fontSize:10, color:'#b0b0b0', padding:'3px 0', borderBottom:'1px solid var(--border)' }}>{line}</div>
         if (line.match(/^---+$/)) return <hr key={i} style={{ border:'none', borderTop:'1px solid var(--border)', margin:'12px 0' }} />
         if (!line.trim()) return <div key={i} style={{ height:8 }} />
-        return <div key={i} style={{ color:'var(--text-2)', fontSize:12, lineHeight:1.9 }} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g,'<strong style="color:var(--text)">$1</strong>').replace(/`(.*?)`/g,'<code style="background:var(--bg-3);color:var(--red);padding:1px 6px;border-radius:2px;font-family:var(--mono);font-size:10px">$1</code>') }} />
+        return <div key={i} style={{ color:'#c0c0c0', fontSize:12, lineHeight:1.9 }} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g,'<strong style="color:#e8e8e8">$1</strong>').replace(/`(.*?)`/g,'<code style="background:var(--bg-3);color:var(--red);padding:1px 6px;border-radius:2px;font-family:var(--mono);font-size:10px">$1</code>') }} />
       })}
     </div>
   )
@@ -85,8 +85,8 @@ export default function Phase5Report() {
 
           <div style={{ fontFamily:'var(--mono)', fontSize:8, color:'var(--text-4)', letterSpacing:'0.1em', marginBottom:5 }}>SESSION</div>
           <select value={sessionId} onChange={e=>setSessionId(e.target.value)} style={{
-            width:'100%', background:'var(--bg-0)', border:'1px solid var(--border)', borderRadius:2,
-            color:'var(--text)', padding:'8px 10px', fontFamily:'var(--mono)', fontSize:11, outline:'none', marginBottom:12,
+            width:'100%', background:'#0d0d0d', border:'1px solid rgba(229,62,62,0.35)', borderRadius:2,
+            color:'#e8e8e8', padding:'8px 10px', fontFamily:'var(--mono)', fontSize:11, outline:'none', marginBottom:12,
             cursor:'pointer',
           }}>
             {sessions.length===0 && <option value="">NO SESSIONS</option>}
@@ -149,7 +149,7 @@ export default function Phase5Report() {
             <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:3 }}>
               {savedReports.map((r,i)=>(
                 <a key={i} href={`/api/reports/download/${r.filename}`} style={{
-                  fontFamily:'var(--mono)', fontSize:9, color:'var(--text-3)',
+                  fontFamily:'var(--mono)', fontSize:9, color:'#aaa',
                   padding:'4px 0', borderBottom:'1px solid var(--border)',
                   display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
                   letterSpacing:'0.04em',

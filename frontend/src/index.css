@@ -11,12 +11,12 @@
   --bg-2:          #090909;
   --bg-3:          #0e0e0e;
   --bg-4:          #141414;
-  --border:        rgba(229,62,62,0.18);
-  --border-subtle: rgba(229,62,62,0.07);
-  --text:          #e53e3e;
-  --text-2:        rgba(229,62,62,0.72);
-  --text-3:        rgba(229,62,62,0.38);
-  --text-4:        rgba(229,62,62,0.16);
+  --border:        rgba(229,62,62,0.28);
+  --border-subtle: rgba(229,62,62,0.10);
+  --text:          #e8e8e8;
+  --text-2:        #c8c8c8;
+  --text-3:        #888888;
+  --text-4:        rgba(200,200,200,0.38);
   --green:         #c8c8c8;
   --green-soft:    rgba(200,200,200,0.1);
   --amber:         #f59e0b;
@@ -63,7 +63,8 @@ a { color: var(--red); text-decoration: none; }
 a:hover { color: var(--red-bright); }
 button { font-family: var(--mono); cursor: pointer; }
 input, select { font-family: var(--mono); }
-input::placeholder { color: var(--text-4); }
+input::placeholder { color: #555; }
+select option { background: #0d0d0d; color: #e8e8e8; }
 
 /* Severity */
 .sev-critical { color: #ff2020; }

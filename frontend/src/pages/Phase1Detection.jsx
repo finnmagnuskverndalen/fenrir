@@ -74,9 +74,9 @@ export default function Phase1Detection() {
   )
 
   const inputStyle = {
-    width: '100%', background: 'var(--bg-1)',
-    border: '1px solid var(--border)',
-    borderRadius: 2, color: 'var(--text)',
+    width: '100%', background: '#0d0d0d',
+    border: '1px solid rgba(229,62,62,0.35)',
+    borderRadius: 2, color: '#e8e8e8',
     padding: '9px 12px',
     fontFamily: 'var(--mono)', fontSize: 12, outline: 'none',
     transition: 'border-color 0.15s',

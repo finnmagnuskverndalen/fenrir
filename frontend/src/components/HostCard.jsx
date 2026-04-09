@@ -112,12 +112,12 @@ export default function HostCard({ host, compact = false, onClick }) {
             )}
           </div>
           {host.hostname && (
-            <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 10, color: '#aaa', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {host.hostname}
             </div>
           )}
           {host.os_guess && (
-            <div style={{ fontSize: 9, color: 'var(--text-4)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.03em' }}>
+            <div style={{ fontSize: 9, color: '#777', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.03em' }}>
               {host.os_guess.slice(0, 35)}
             </div>
           )}
@@ -126,7 +126,7 @@ export default function HostCard({ host, compact = false, onClick }) {
         {/* Right badges */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
           {host.ports?.length > 0 && (
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-4)', letterSpacing: '0.05em' }}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: '#777', letterSpacing: '0.05em' }}>
               {host.ports.length}p
             </span>
           )}
@@ -151,14 +151,14 @@ export default function HostCard({ host, compact = false, onClick }) {
               fontFamily: 'var(--mono)', fontSize: 8,
               padding: '2px 6px', borderRadius: 2,
               background: 'var(--bg-3)', border: '1px solid var(--border)',
-              color: 'var(--text-3)',
+              color: '#999',
               letterSpacing: '0.04em',
             }}>
               {p.port}{p.service ? `/${p.service}` : ''}
             </span>
           ))}
           {host.ports.length > 6 && (
-            <span style={{ fontFamily: 'var(--mono)', fontSize: 8, color: 'var(--text-4)', padding: '2px 3px' }}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 8, color: '#666', padding: '2px 3px' }}>
               +{host.ports.length - 6}
             </span>
           )}

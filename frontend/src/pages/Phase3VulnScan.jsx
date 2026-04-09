@@ -200,7 +200,7 @@ export default function Phase3VulnScan() {
                   transition:'all 0.12s',
                 }}>
                   <div style={{ width:5, height:5, borderRadius:'50%', background: h.compromised ? '#ff2020' : selected ? 'var(--red)' : '#c8c8c8', flexShrink:0 }} />
-                  <span style={{ fontFamily:'var(--mono)', fontSize:10, color: h.compromised ? '#ff2020' : 'var(--text)', flex:1 }}>{h.ip}</span>
+                  <span style={{ fontFamily:'var(--mono)', fontSize:10, color: h.compromised ? '#ff2020' : '#e0e0e0', flex:1 }}>{h.ip}</span>
                   {h.ports?.length > 0 && <span style={{ fontFamily:'var(--mono)', fontSize:8, color:'var(--text-4)' }}>{h.ports.length}p</span>}
                   {h.compromised && <span style={{ fontFamily:'var(--mono)', fontSize:7, color:'#ff2020', letterSpacing:'0.08em' }}>PWNED</span>}
                 </div>
@@ -294,13 +294,13 @@ export default function Phase3VulnScan() {
                   </span>
                   {f.cve_id && <span style={{ fontFamily:'var(--mono)', fontSize:9, color:'var(--text-2)', flexShrink:0 }}>{f.cve_id}</span>}
                   {f.cvss_score && <span style={{ fontFamily:'var(--mono)', fontSize:9, color:'var(--text-4)', flexShrink:0 }}>CVSS:{f.cvss_score}</span>}
-                  <span style={{ fontSize:11, color:'var(--text)', fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.title}</span>
+                  <span style={{ fontSize:11, color:'#e0e0e0', fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.title}</span>
                   <span style={{ color:'var(--text-4)', fontSize:9, flexShrink:0, letterSpacing:'0.05em' }}>{isOpen ? '[--]' : '[++]'}</span>
                 </div>
                 {isOpen && (
                   <div style={{ borderTop:'1px solid var(--border)', padding:'10px 12px', display:'flex', flexDirection:'column', gap:10 }}>
                     {f.description && (
-                      <div style={{ fontSize:11, color:'var(--text-2)', lineHeight:1.8 }}>{f.description}</div>
+                      <div style={{ fontSize:11, color:'#c0c0c0', lineHeight:1.8 }}>{f.description}</div>
                     )}
                     {f.ai_analysis && (
                       <div style={{
@@ -309,7 +309,7 @@ export default function Phase3VulnScan() {
                         borderRadius:'0 2px 2px 0', padding:'10px 12px',
                       }}>
                         <div style={{ fontFamily:'var(--mono)', fontSize:8, color:'var(--text-3)', letterSpacing:'0.15em', marginBottom:6 }}>// AI_ANALYSIS</div>
-                        <div style={{ fontSize:11, color:'var(--text-2)', lineHeight:1.8 }}>
+                        <div style={{ fontSize:11, color:'#c0c0c0', lineHeight:1.8 }}>
                           {f.ai_analysis.replace(/#{1,3} /g,'').replace(/\*\*/g,'')}
                         </div>
                       </div>
