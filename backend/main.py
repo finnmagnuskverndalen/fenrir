@@ -142,7 +142,7 @@ Host: {host_info.get('ip', 'N/A')} | OS: {host_info.get('os_guess', 'unknown')}
 Open ports: {host_info.get('ports', [])}
 
 Findings:
-{str(data.get('findings', []))[:2000]}
+{str(data.get('findings', []) if isinstance(data, dict) else data)[:2000]}
 
 Identify 2-3 realistic attack chains that combine multiple findings. For each chain:
 - Name the chain
