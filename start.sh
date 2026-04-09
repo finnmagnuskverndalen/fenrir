@@ -43,6 +43,10 @@ if [ ! -f ".env" ]; then
     echo -e "${YELLOW}  Edit .env and add your OPENROUTER_API_KEY${NC}"
 fi
 
+# Clear database and audit log for a clean slate
+rm -f fenrir.db audit.log
+echo -e "${YELLOW}  Database cleared — starting fresh${NC}"
+
 # Fix file watcher limit
 ulimit -n 65536 2>/dev/null
 
