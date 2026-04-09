@@ -78,9 +78,17 @@ def is_in_scope(target: str) -> bool:
 
 def validate_config():
     """Raise if required config is missing."""
-    if not OPENROUTER_API_KEY:
+    # Check AI provider — skip API key requirement for Ollama
+    try:
+        from ai.provider import load_settings
+        settings = load_settings()
+        provider = settings.get("provider", "openrouter")
+    except Exception:
+        provider = "openrouter"
+
+    if provider == "openrouter" and not OPENROUTER_API_KEY and not _settings_has_key():
         raise ValueError(
-            "OPENROUTER_API_KEY is not set. Add it to your .env file.\n"
+            "OPENROUTER_API_KEY is not set. Add it to your .env file or configure it in Settings.\n"
             "Get a free key at https://openrouter.ai/keys"
         )
     if not SCOPE_FILE.exists():
@@ -90,3 +98,16 @@ def validate_config():
         )
     if not load_scope():
         raise ValueError("scope.txt is empty. Add at least one CIDR range.")
+
+
+def _settings_has_key() -> bool:
+    """Check if settings.json has an OpenRouter API key."""
+    settings_path = BASE_DIR / "settings.json"
+    if not settings_path.exists():
+        return False
+    try:
+        import json
+        data = json.loads(settings_path.read_text())
+        return bool(data.get("openrouter_api_key", ""))
+    except Exception:
+        return False

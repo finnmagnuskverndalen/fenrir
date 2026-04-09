@@ -1,8 +1,7 @@
-import httpx
 import os
 from datetime import datetime
-from backend.config import OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_BASE_URL, AI_MAX_TOKENS
-from backend.database import SessionLocal, ScanSession, Host, Port, Finding
+from backend.database import SessionLocal, ScanSession, Host, Finding
+from ai.provider import call_ai
 
 
 REPORT_SYSTEM_PROMPT = """You are a senior penetration tester writing a professional security assessment report.
@@ -23,8 +22,8 @@ For each critical/high finding, include:
 ### [SEVERITY] Finding Title
 - **CVE:** (if applicable)
 - **CVSS Score:** (if available)
-- **Affected Host:** 
-- **Description:** 
+- **Affected Host:**
+- **Description:**
 - **Impact:** What an attacker could do if this is exploited
 - **Remediation:** Specific steps to fix this
 
@@ -57,12 +56,11 @@ async def generate_report(session_id: str) -> str:
             return "No findings to report for this session."
 
         context = _build_context(session, hosts, findings)
-        report = await _call_openrouter(
+        report = await call_ai(
             system=REPORT_SYSTEM_PROMPT,
             user=f"Write a penetration test report for this engagement:\n\n{context}",
         )
 
-        # Save report to file
         os.makedirs("reports", exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M')
         filename = f"reports/fenrir_report_{session_id[:8]}_{timestamp}.md"
@@ -118,32 +116,3 @@ def db_ports_summary(host) -> str:
     if not host.ports:
         return "none"
     return ", ".join(f"{p.port}/{p.protocol}({p.service or '?'})" for p in host.ports[:10])
-
-
-async def _call_openrouter(system: str, user: str) -> str:
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/finnmagnuskverndalen/fenrir",
-        "X-Title": "Fenrir - Network Security Scanner",
-    }
-    payload = {
-        "model": OPENROUTER_MODEL,
-        "max_tokens": 4096,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-    }
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{OPENROUTER_BASE_URL}/chat/completions",
-                headers=headers,
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"Report generation failed: {e}"

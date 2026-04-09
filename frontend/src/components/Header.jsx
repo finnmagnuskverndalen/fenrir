@@ -9,7 +9,7 @@ const PHASES = [
 ]
 
 export default function Header() {
-  const { currentPhase, setPhase, phaseStatus, hosts, findings, scanning } = useFenrir()
+  const { currentPhase, setPhase, phaseStatus, hosts, findings, scanning, showSettings, setShowSettings } = useFenrir()
   const crits = findings.filter(f => f.severity === 'critical').length
   const highs  = findings.filter(f => f.severity === 'high').length
 
@@ -95,7 +95,7 @@ export default function Header() {
           { label: 'HOSTS',    val: hosts.length, color: 'var(--text-2)' },
           { label: 'CRITICAL', val: crits,        color: crits > 0 ? 'var(--red-bright)' : 'var(--text-4)' },
           { label: 'HIGH',     val: highs,        color: highs > 0 ? '#ff5500'           : 'var(--text-4)' },
-        ].map(({ label, val, color }, i) => (
+        ].map(({ label, val, color }) => (
           <div key={label} style={{
             padding: '0 18px',
             borderLeft: '1px solid var(--border)',
@@ -107,6 +107,25 @@ export default function Header() {
             <div style={{ fontSize: 8, color: 'var(--text-4)', letterSpacing: '0.12em' }}>{label}</div>
           </div>
         ))}
+
+        {/* Settings gear */}
+        <button onClick={() => setShowSettings(!showSettings)} title="Settings" style={{
+          padding: '0 18px',
+          borderLeft: '1px solid var(--border)',
+          borderBottom: `2px solid ${showSettings ? 'var(--red-bright)' : 'transparent'}`,
+          borderTop: '2px solid transparent',
+          borderRight: 'none',
+          background: showSettings ? 'rgba(229,62,62,0.06)' : 'transparent',
+          color: showSettings ? 'var(--red)' : 'var(--text-3)',
+          cursor: 'pointer',
+          fontFamily: 'var(--mono)',
+          fontSize: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'color 0.15s',
+          height: '100%',
+        }}>
+          &#9881;
+        </button>
       </div>
     </header>
   )

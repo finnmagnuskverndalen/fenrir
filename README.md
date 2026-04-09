@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/version-2.0-red?style=flat-square&color=e53e3e" />
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/react-18-61dafb?style=flat-square" />
-  <img src="https://img.shields.io/badge/AI-OpenRouter-orange?style=flat-square" />
+  <img src="https://img.shields.io/badge/AI-OpenRouter%20%7C%20Ollama-orange?style=flat-square" />
   <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
 </p>
 
@@ -14,7 +14,7 @@
 
 Fenrir is an AI-powered network security scanner built for penetration testers and security researchers. It combines fast network discovery, deep service enumeration, vulnerability scanning, and exploit lookup into a single war room interface — with an LLM analyzing every finding in real time.
 
-Inspired by Armitage, rebuilt from scratch with a modern dark UI, a 5-phase workflow, and DeepSeek AI integrated at every step.
+Inspired by Armitage, rebuilt from scratch with a modern dark UI, a 5-phase workflow, and AI integrated at every step. Supports both cloud AI (OpenRouter) and local models (Ollama) — configurable at runtime without touching config files.
 
 ---
 
@@ -30,26 +30,27 @@ Inspired by Armitage, rebuilt from scratch with a modern dark UI, a 5-phase work
 - **ARP sweep** — discovers all live hosts on a local network in under 3 seconds, cannot be blocked by host firewalls
 - **Parallel OS detection** — fingerprints operating systems on up to 5 hosts simultaneously using nmap `-O`
 - **Deep service scan** — nmap `-sV -sC` per host, identifies services, versions, and banners. Runs sequentially to prevent memory overload
-- **Vulnerability scan** — nuclei with 5,000+ templates scans all discovered HTTP/HTTPS services. Findings enriched with CVE IDs and CVSS scores from the NVD API
+- **Vulnerability scan** — nuclei with 5,000+ templates scans all discovered HTTP/HTTPS services. Fast and Extensive scan modes. Findings enriched with CVE IDs and CVSS scores from the NVD API
 - **Exploit lookup** — searchsploit automatically matches findings to exploit-db entries. Metasploit module search per CVE
 - **GitHub PoC linker** — queries poc-in-github.motikan2010.net to surface public proof-of-concept repositories for each CVE, sorted by star count
 - **TLS/SSL inspector** — inspects certificate expiry, SAN list, cipher suite, protocol version (TLS 1.0/1.1 weak protocol detection), and self-signed detection without any external tools
 - **HTTP fingerprinter** — sends HEAD + OPTIONS requests and probes 9 sensitive paths (`.env`, `.git/HEAD`, `phpinfo.php`, `wp-login.php`, etc.) to map attack surface
 - **Default credential check** — tests 11 common credential pairs against HTTP Basic Auth and FTP. Respects `CRED_CHECK_ENABLED` flag. Every success is written to the audit log
-- **AI Attack Playbook** — DeepSeek generates a full exploitation playbook per finding: prerequisites, exploitation steps, post-exploitation, detection evasion, verification command
-- **Attack Chain Analysis** — AI analyzes all findings on a host together and identifies multi-step kill chains, combining vulnerabilities to show combined severity and end-goal impact
 
 ### AI
-- **Per-finding analysis** — DeepSeek analyzes every critical and high severity finding individually: what it is, how it's exploited, how to fix it
+- **Dual provider support** — use OpenRouter (cloud, 200+ models) or Ollama (local, fully private). Switchable at runtime from the Settings page without restarting
+- **Per-finding analysis** — AI analyzes every critical and high severity finding individually: what it is, how it's exploited, how to fix it
 - **Phase summaries** — AI summarizes what was found after detection and vulnerability scan phases
+- **AI Attack Playbook** — generates a full exploitation playbook per finding: prerequisites, exploitation steps, post-exploitation, detection evasion, verification command
+- **Attack Chain Analysis** — analyzes all findings on a host together and identifies multi-step kill chains with combined severity and end-goal impact
 - **Pentest report generation** — structured report with executive summary, technical findings sorted by severity, and a prioritized remediation roadmap
 - **Retry logic** — 3 retries with exponential backoff on rate limits and timeouts
 
 ### Interface
 - **5-phase war room** — Detection → Port Scan → Vuln Scan → Exploitation → Report. Phase tabs with live status indicators
+- **Settings page** — gear icon in the header opens the AI provider configurator. Switch between OpenRouter and Ollama, set API keys, select models, and test connectivity — all without editing files or restarting
 - **Network topology map** — SVG visualization showing hosts as nodes, color-coded by severity, animated pulse on compromised hosts
 - **Live terminal** — all tool output streams to a filterable console at the bottom. Filter by level: ALL / ERROR / WARN / OK / INFO. Pause and resume scrolling
-- **Host cards** — show OS type, open ports, top vulnerability severity. Update live as scans progress
 - **Deduplication** — findings deduplicated at both the nuclei output and database level
 - **Session isolation** — hosts and findings scoped to the active scan session, no cross-session contamination
 
@@ -69,10 +70,10 @@ Phase 2 — Port Scan
   Progress bar shows current host / total
 
 Phase 3 — Vulnerability Scan
-  nuclei runs against all HTTP/HTTPS services per host
+  FAST mode:      critical/high only, CVE+misconfig tags, ~5 min
+  EXTENSIVE mode: all severities, all templates, ~20 min
   NVD API enriches each CVE with CVSS score and description
-  DeepSeek analyzes each critical/high finding
-  AI writes a threat summary
+  AI analyzes each critical/high finding
 
 Phase 4 — Exploitation (4-tab workbench)
   INTEL tab:
@@ -92,9 +93,16 @@ Phase 4 — Exploitation (4-tab workbench)
 
 Phase 5 — Report
   Select any past scan session
-  DeepSeek writes a full penetration test report
+  AI writes a full penetration test report
   Executive summary, technical findings, remediation roadmap
   Export as markdown
+
+Settings (gear icon ⚙)
+  Switch AI provider: OpenRouter or Ollama
+  Set API keys, model names, Ollama URL
+  Fetch installed Ollama models with one click
+  Test connection before scanning
+  Settings persist to settings.json — no restart required
 ```
 
 ---
@@ -107,7 +115,8 @@ Phase 5 — Report
 | Typography | JetBrains Mono |
 | Backend | FastAPI, Python 3.12 |
 | Database | SQLite via SQLAlchemy |
-| AI | OpenRouter — DeepSeek Chat |
+| AI (cloud) | OpenRouter — any model (DeepSeek, Llama, Gemini, etc.) |
+| AI (local) | Ollama — llama3.2, mistral, deepseek-r1, qwen2.5-coder, etc. |
 | Host discovery | nmap (ARP sweep, OS detection) |
 | Port scanning | nmap -sV -sC |
 | Vulnerability scanning | nuclei v3 + NVD API |
@@ -127,7 +136,7 @@ Phase 5 — Report
 - nuclei v3
 - searchsploit (optional — for exploit lookup)
 - Metasploit Framework (optional — for module search)
-- OpenRouter API key (free tier available)
+- OpenRouter API key **or** Ollama running locally
 
 ---
 
@@ -173,22 +182,30 @@ echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
 
-### 4. Configure environment
+### 4. Configure AI provider
+
+**Option A — OpenRouter (cloud)**
 
 ```bash
 cp .env.example .env
+# Edit .env and set OPENROUTER_API_KEY
 ```
 
-Edit `.env`:
+Get a free key at [openrouter.ai/keys](https://openrouter.ai/keys).
 
-```env
-OPENROUTER_API_KEY=your_key_here
-OPENROUTER_MODEL=deepseek/deepseek-chat
-DRY_RUN=false
-ALLOW_PUBLIC_IPS=false
+**Option B — Ollama (local, fully private)**
+
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a model
+ollama pull llama3.2
+
+# No API key needed — configure in the Fenrir Settings page
 ```
 
-Get a free API key at [openrouter.ai/keys](https://openrouter.ai/keys).
+You can also switch providers at any time from the **⚙ Settings** page in the UI without editing files or restarting.
 
 ### 5. Define authorized scope
 
@@ -212,10 +229,12 @@ Open **http://localhost:5173**
 
 ## Configuration
 
+### Environment variables (`.env`)
+
 | Variable | Default | Description |
 |---|---|---|
-| `OPENROUTER_API_KEY` | — | Required. Get free at openrouter.ai/keys |
-| `OPENROUTER_MODEL` | `deepseek/deepseek-chat` | AI model to use |
+| `OPENROUTER_API_KEY` | — | OpenRouter API key (can also be set in the UI) |
+| `OPENROUTER_MODEL` | `deepseek/deepseek-chat` | Default model (overridden by UI settings) |
 | `DRY_RUN` | `true` | Set `false` to enable real exploitation |
 | `ALLOW_PUBLIC_IPS` | `false` | Set `true` to scan external targets |
 | `NVD_API_KEY` | — | Optional. Increases NVD rate limits |
@@ -225,18 +244,43 @@ Open **http://localhost:5173**
 | `HOST` | `127.0.0.1` | Backend bind address |
 | `PORT` | `8765` | Backend port |
 
+### Runtime settings (`settings.json`)
+
+These are managed through the **⚙ Settings** UI and do not require editing files:
+
+| Setting | Description |
+|---|---|
+| Provider | `openrouter` or `ollama` |
+| API key | OpenRouter key (stored locally, never sent anywhere except OpenRouter) |
+| Model | Model name for the selected provider |
+| Ollama URL | Base URL for Ollama (default: `http://localhost:11434`) |
+| Max tokens | Maximum tokens per AI response |
+
+Settings in `settings.json` take priority over `.env` values.
+
 ---
 
 ## AI model options
 
-| Model | Input / Output (per 1M tokens) | Notes |
+### OpenRouter
+
+| Model | Cost (per 1M tokens) | Notes |
 |---|---|---|
-| `deepseek/deepseek-chat` | $0.32 / $0.89 | Recommended. Best security knowledge |
+| `deepseek/deepseek-chat` | $0.32 / $0.89 | Best security knowledge |
 | `meta-llama/llama-3.3-70b-instruct` | Free | Zero cost |
 | `google/gemini-2.0-flash-exp` | Free | Zero cost, fast |
 | `mistralai/mistral-small-3.1` | $0.10 / $0.30 | Good balance |
 
 A full scan with 47 findings, per-finding AI analysis, and report generation costs approximately **$0.02** with DeepSeek.
+
+### Ollama (local)
+
+| Model | Notes |
+|---|---|
+| `llama3.2` | Good general-purpose, fast on CPU |
+| `mistral` | Strong reasoning, good for analysis |
+| `deepseek-r1` | Best security knowledge locally |
+| `qwen2.5-coder` | Good for technical output |
 
 ---
 
@@ -254,9 +298,10 @@ fenrir/
 │       ├── host_discovery.py    # ARP sweep + parallel OS detection
 │       ├── port_scan.py         # nmap -sV -sC, skips redundant ping sweep
 │       ├── vuln_scan.py         # nuclei + NVD enrichment + deduplication
-│           └── exploit.py           # searchsploit, MSF, GitHub PoC, TLS probe, HTTP fingerprint, cred check
+│       └── exploit.py           # searchsploit, MSF, GitHub PoC, TLS probe, HTTP fingerprint, cred check
 ├── ai/
-│   ├── analyst.py               # Per-finding analysis, retry logic
+│   ├── provider.py              # Provider abstraction: OpenRouter + Ollama, settings persistence
+│   ├── analyst.py               # Per-finding analysis
 │   └── reporter.py              # Pentest report generation
 ├── frontend/
 │   └── src/
@@ -267,7 +312,7 @@ fenrir/
 │       ├── hooks/
 │       │   └── useWebSocket.js  # Singleton WS connection, message dedup
 │       ├── components/
-│       │   ├── Header.jsx       # Phase tabs, live counters, scan progress
+│       │   ├── Header.jsx       # Phase tabs, live counters, gear icon
 │       │   ├── HostCard.jsx     # Host display with OS, ports, severity
 │       │   ├── NetworkMap.jsx   # SVG topology visualization
 │       │   └── Terminal.jsx     # Filterable live console
@@ -275,8 +320,10 @@ fenrir/
 │           ├── Phase1Detection.jsx    # ARP sweep, OS fingerprint, network map
 │           ├── Phase2PortScan.jsx     # Port scan with progress bar
 │           ├── Phase3VulnScan.jsx     # Vuln scan, findings list, AI analysis
-│           ├── Phase4Exploitation.jsx # 4-tab exploitation workbench (INTEL/MODULES/ACTIVE/PLAYBOOK)
-│           └── Phase5Report.jsx      # Report generation and download
+│           ├── Phase4Exploitation.jsx # 4-tab exploitation workbench
+│           ├── Phase5Report.jsx      # Report generation and download
+│           └── PhaseSettings.jsx     # AI provider configuration
+├── settings.json                # Runtime AI settings (auto-created by UI)
 ├── reports/                     # Generated reports (auto-created)
 ├── Screenshot.png               # UI screenshot
 ├── start.sh                     # Single command launcher
@@ -300,7 +347,7 @@ Fenrir has multiple layers of safety controls:
 - **Duplicate scan prevention** — the backend blocks concurrent scans against the same target
 - **Dry run mode** — exploitation features generate commands but do not execute them. Set `DRY_RUN=false` in `.env` to enable real execution
 - **Public IP blocking** — external IP ranges are blocked by default. Set `ALLOW_PUBLIC_IPS=true` to enable
-- **Audit log** — every action (scan start, phase transitions, exploit attempts) is logged with timestamp to `audit.log`. The log is append-only and never truncated
+- **Audit log** — every action (scan start, phase transitions, exploit attempts, settings changes) is logged with timestamp to `audit.log`. The log is append-only and never truncated
 
 ---
 
@@ -319,6 +366,9 @@ Fenrir has multiple layers of safety controls:
 | POST | `/api/reports/generate/{id}` | Generate pentest report |
 | GET | `/api/reports/list` | List saved reports |
 | GET | `/api/reports/download/{filename}` | Download a report |
+| GET | `/api/settings` | Get current AI settings (API key masked) |
+| POST | `/api/settings` | Update AI settings |
+| GET | `/api/settings/ollama/models` | List installed Ollama models |
 | POST | `/api/exploits/lookup` | searchsploit lookup |
 | GET | `/api/exploits/metasploit/{cve}` | Metasploit module search |
 | POST | `/api/exploits/run` | Run exploit (dry-run by default) |
@@ -335,23 +385,6 @@ Fenrir has multiple layers of safety controls:
 
 ---
 
-## Milestones
-
-- [x] **M1** — Project scaffold
-- [x] **M2** — Backend core (FastAPI, SQLite, WebSocket, scope guard, audit log)
-- [x] **M3** — Scan phases (two-phase nmap, nuclei, NVD enrichment, live streaming)
-- [x] **M4** — AI analysis (DeepSeek via OpenRouter)
-- [x] **M5** — Frontend polish (expandable findings, DB-backed, host drilldown)
-- [x] **M6** — Report generator (structured pentest report, markdown export)
-- [x] **M7** — Exploit layer (searchsploit, Metasploit module search, dry-run)
-- [x] **M8** — Fenrir v2 UI (5-phase war room, live terminal, host cards, network map)
-- [x] **M9** — Stability and UX overhaul (singleton WebSocket, deduplication, sequential scanning, per-finding AI, retry logic, terminal filters, session isolation)
-- [x] **M10** — UI redesign (black/red hacker theme, JetBrains Mono, CRT scanlines, red glow)
-- [x] **M11** — Exploitation workbench (GitHub PoC, TLS inspector, HTTP fingerprinter, default cred check, AI attack playbooks, kill chain analysis)
-- [ ] **M12** — Docker packaging, PDF export, API authentication
-
----
-
 ## License
 
 MIT — see [LICENSE](LICENSE)
@@ -359,5 +392,5 @@ MIT — see [LICENSE](LICENSE)
 ---
 
 <p align="center">
-  Built by <a href="https://github.com/finnmagnuskverndalen">finnmagnuskverndalen</a>
+  Built by <a href="https://github.com/finnmagnuskverndalen/fenrir">finnmagnuskverndalen</a>
 </p>

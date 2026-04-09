@@ -13,6 +13,16 @@ export const useFenrir = create((set) => ({
   scanTarget: '192.168.10.0/24',
   scanning: false,
   terminalLines: [],
+  showSettings: false,
+  settings: {
+    provider: 'openrouter',
+    openrouter_api_key: '',
+    openrouter_model: 'meta-llama/llama-3.3-70b-instruct',
+    ollama_base_url: 'http://localhost:11434',
+    ollama_model: 'llama3.2',
+    ai_max_tokens: 4096,
+  },
+  settingsLoaded: false,
 
   setPhase: (p) => set({ currentPhase: p }),
   setPhaseStatus: (phase, status) => set(s => ({ phaseStatus: { ...s.phaseStatus, [phase]: status } })),
@@ -54,4 +64,14 @@ export const useFenrir = create((set) => ({
 
   setAISummary: (phase, text) => set(s => ({ aiSummary: { ...s.aiSummary, [phase]: text } })),
   setSessions: (sessions) => set({ sessions }),
+
+  setShowSettings: (v) => set({ showSettings: v }),
+  setSettings: (s) => set({ settings: s, settingsLoaded: true }),
+  loadSettingsFromBackend: async () => {
+    try {
+      const r = await fetch('/api/settings')
+      const data = await r.json()
+      set({ settings: data, settingsLoaded: true })
+    } catch {}
+  },
 }))

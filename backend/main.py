@@ -113,7 +113,7 @@ async def run_scan(session_id: str, target: str, phases: list[str], dry_run: boo
 
 @app.post("/api/ai/summarize")
 async def ai_summarize(body: dict):
-    from ai.analyst import _call_openrouter
+    from ai.provider import call_ai as _call_openrouter
     phase = body.get("phase", "")
     data = body.get("data", {})
     finding = data.get("finding", {}) if isinstance(data, dict) else {}
@@ -256,7 +256,7 @@ async def check_creds(body: dict):
 
 @app.post("/api/exploits/chain_analysis")
 async def chain_analysis(body: dict):
-    from ai.analyst import _call_openrouter
+    from ai.provider import call_ai as _call_openrouter
     from backend.database import get_db as _get_db, Finding as _Finding, Host as _Host
     host_ip    = body.get("host_ip", "")
     session_id = body.get("session_id", "")
@@ -363,6 +363,62 @@ def health():
     return {"status": "ok", "dry_run": DRY_RUN, "active_scans": list(_active_scans)}
 
 
+class SettingsUpdate(BaseModel):
+    provider: str | None = None
+    openrouter_api_key: str | None = None
+    openrouter_model: str | None = None
+    ollama_base_url: str | None = None
+    ollama_model: str | None = None
+    ai_max_tokens: int | None = None
+
+
+@app.get("/api/settings")
+def get_settings():
+    from ai.provider import load_settings
+    s = load_settings()
+    # Mask API key before returning to frontend
+    key = s.get("openrouter_api_key", "")
+    if len(key) > 8:
+        s["openrouter_api_key"] = key[:8] + "***"
+    elif key:
+        s["openrouter_api_key"] = "***"
+    return s
+
+
+@app.post("/api/settings")
+def update_settings(req: SettingsUpdate):
+    from ai.provider import load_settings, save_settings
+    patch = {k: v for k, v in req.model_dump().items() if v is not None}
+
+    # Discard masked key — keep the stored one
+    if "openrouter_api_key" in patch and "***" in patch["openrouter_api_key"]:
+        del patch["openrouter_api_key"]
+
+    if "provider" in patch and patch["provider"] not in ("openrouter", "ollama"):
+        raise HTTPException(status_code=400, detail="provider must be 'openrouter' or 'ollama'")
+    if "ollama_base_url" in patch and not patch["ollama_base_url"].startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="ollama_base_url must start with http:// or https://")
+    if "ai_max_tokens" in patch and not (128 <= patch["ai_max_tokens"] <= 32768):
+        raise HTTPException(status_code=400, detail="ai_max_tokens must be between 128 and 32768")
+
+    current = load_settings()
+    current.update(patch)
+    save_settings(current)
+    audit_log("SETTINGS_UPDATED", detail=f"provider={current['provider']}")
+    return {"ok": True, "provider": current["provider"]}
+
+
+@app.get("/api/settings/ollama/models")
+async def get_ollama_models():
+    from ai.provider import load_settings, list_ollama_models
+    settings = load_settings()
+    base_url = settings["ollama_base_url"]
+    models = await list_ollama_models(base_url)
+    if not models:
+        return {"models": [], "base_url": base_url, "error": f"Cannot connect to Ollama at {base_url}"}
+    return {"models": models, "base_url": base_url}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=DEBUG)
@@ -370,12 +426,8 @@ if __name__ == "__main__":
 
 @app.post("/api/ai/test")
 async def ai_test():
-    from ai.analyst import _call_openrouter
-    try:
-        result = await _call_openrouter(
-            system="You are a helpful assistant.",
-            user="Reply with just the word: WORKING"
-        )
-        return {"result": result, "status": "ok"}
-    except Exception as e:
-        return {"result": None, "status": "error", "error": f"{type(e).__name__}: {e}"}
+    from ai.provider import test_connection
+    result = await test_connection()
+    if result["ok"]:
+        return {"result": result["response"], "status": "ok"}
+    return {"result": None, "status": "error", "error": result["error"]}
