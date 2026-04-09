@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useFenrir } from '../store/fenrirStore'
-import HostCard from '../components/HostCard'
 
 const sevColor = {
   critical: '#ff2020',
@@ -19,7 +18,7 @@ const sevBg = {
 const sevOrder = { critical:0, high:1, medium:2, low:3, info:4 }
 
 export default function Phase3VulnScan() {
-  const { hosts, selectedHosts, selectAllHosts, clearHostSelect, scanning, setScanning, setPhaseStatus, addTerminalLine, setPhase } = useFenrir()
+  const { hosts, selectedHosts, toggleHostSelect, selectAllHosts, clearHostSelect, scanning, setScanning, setPhaseStatus, addTerminalLine, setPhase } = useFenrir()
   const [findings, setFindings] = useState([])
   const [dryRun, setDryRun] = useState(false)
   const [expanded, setExpanded] = useState(null)
@@ -159,10 +158,31 @@ export default function Phase3VulnScan() {
           )}
         </div>
 
-        <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:4 }}>
-          {hosts.length === 0 ? (
-            <div style={{ fontFamily:'var(--mono)', fontSize:9, color:'var(--text-4)', padding:'4px 0', letterSpacing:'0.08em' }}>&gt; RUN PHASES 1 &amp; 2 FIRST</div>
-          ) : hosts.map(h => <HostCard key={h.ip} host={h} compact />)}
+        <div style={{ background:'var(--bg-1)', border:'1px solid var(--border)', borderRadius:2, padding:'12px', flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+          <div style={{ fontFamily:'var(--mono)', fontSize:8, color:'var(--text-3)', letterSpacing:'0.15em', marginBottom:8 }}>
+            // HOSTS ({hosts.length})
+          </div>
+          <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:2 }}>
+            {hosts.length === 0 ? (
+              <div style={{ fontFamily:'var(--mono)', fontSize:9, color:'var(--text-4)', letterSpacing:'0.06em' }}>&gt; RUN PHASES 1 &amp; 2 FIRST</div>
+            ) : hosts.map(h => {
+              const selected = selectedHosts.has(h.ip)
+              return (
+                <div key={h.ip} onClick={() => toggleHostSelect(h.ip)} style={{
+                  padding:'6px 8px', borderRadius:2, cursor:'pointer',
+                  background: selected ? 'rgba(229,62,62,0.07)' : 'transparent',
+                  border: `1px solid ${selected ? 'var(--red-border)' : 'transparent'}`,
+                  display:'flex', alignItems:'center', gap:8,
+                  transition:'all 0.12s',
+                }}>
+                  <div style={{ width:5, height:5, borderRadius:'50%', background: h.compromised ? '#ff2020' : selected ? 'var(--red)' : '#c8c8c8', flexShrink:0 }} />
+                  <span style={{ fontFamily:'var(--mono)', fontSize:10, color: h.compromised ? '#ff2020' : 'var(--text)', flex:1 }}>{h.ip}</span>
+                  {h.ports?.length > 0 && <span style={{ fontFamily:'var(--mono)', fontSize:8, color:'var(--text-4)' }}>{h.ports.length}p</span>}
+                  {h.compromised && <span style={{ fontFamily:'var(--mono)', fontSize:7, color:'#ff2020', letterSpacing:'0.08em' }}>PWNED</span>}
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
