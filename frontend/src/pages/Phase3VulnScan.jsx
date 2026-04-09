@@ -130,7 +130,7 @@ export default function Phase3VulnScan() {
                   fontFamily:'var(--mono)', fontSize:9, fontWeight:700,
                   letterSpacing:'0.08em', cursor:'pointer',
                 }}>
-                  {mode === 'fast' ? '⚡ FAST' : '🔬 EXTENSIVE'}
+                  {mode === 'fast' ? '>> FAST' : '[*] EXTENSIVE'}
                 </button>
               ))}
             </div>
