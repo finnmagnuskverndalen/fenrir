@@ -1,3 +1,4 @@
+import json
 import uuid
 import asyncio
 import os
@@ -113,10 +114,39 @@ async def ai_summarize(body: dict):
     from ai.analyst import _call_openrouter
     phase = body.get("phase", "")
     data = body.get("data", {})
+    finding = data.get("finding", {}) if isinstance(data, dict) else {}
+    host_info = data.get("host", {}) if isinstance(data, dict) else {}
     prompts = {
         "detection": f"You are a pentester. Summarize in 3 sentences what was found during network detection: {str(data)[:1000]}. Focus on interesting hosts and OS types.",
         "vulnscan": f"You are a pentester. Summarize in 4 sentences the vulnerability scan findings: {str(data)[:2000]}. Highlight critical risks and immediate actions.",
         "exploit_recon": f"You are a pentester. For this finding: {str(data)[:500]}, explain in 3 sentences: what the vulnerability is, how it can be exploited, and what access an attacker gains.",
+        "attack_playbook": f"""You are a senior penetration tester on an authorized engagement. Generate a concise attack playbook for the following finding.
+
+Finding: {finding.get('title', 'N/A')}
+CVE: {finding.get('cve_id', 'N/A')} | CVSS: {finding.get('cvss_score', 'N/A')}
+Description: {(finding.get('description') or '')[:500]}
+Target OS: {host_info.get('os_guess', 'unknown')}
+Open ports: {host_info.get('ports', [])}
+
+Respond with exactly these sections, keep each section brief and technical:
+## Prerequisites
+## Exploitation Steps
+## Post-Exploitation
+## Detection Evasion
+## Verification Command""",
+        "chain_analysis": f"""You are a senior penetration tester. Analyze these vulnerabilities found on the same host and identify multi-step attack chains.
+
+Host: {host_info.get('ip', 'N/A')} | OS: {host_info.get('os_guess', 'unknown')}
+Open ports: {host_info.get('ports', [])}
+
+Findings:
+{str(data.get('findings', []))[:2000]}
+
+Identify 2-3 realistic attack chains that combine multiple findings. For each chain:
+- Name the chain
+- List the steps in order (what finding enables what)
+- State the combined severity
+- Describe what the attacker achieves at the end""",
     }
     prompt = prompts.get(phase, f"Summarize this security data in 3 sentences: {str(data)[:500]}")
     try:
@@ -178,6 +208,96 @@ async def get_msf_modules(cve_id: str):
     from backend.phases.exploit import get_metasploit_modules
     modules = await get_metasploit_modules(cve_id)
     return {"modules": modules, "cve_id": cve_id}
+
+
+@app.get("/api/exploits/poc/{cve_id}")
+async def get_poc_links(cve_id: str):
+    from backend.phases.exploit import get_poc_links
+    pocs = await get_poc_links(cve_id)
+    return {"pocs": pocs, "cve_id": cve_id}
+
+
+@app.post("/api/exploits/tls_probe")
+async def probe_tls(body: dict):
+    from backend.phases.exploit import tls_probe
+    host = body.get("host", "")
+    port = int(body.get("port", 443))
+    if not is_in_scope(host):
+        raise HTTPException(status_code=403, detail=f"Target {host} is not in scope.")
+    result = await tls_probe(host, port)
+    return result
+
+
+@app.post("/api/exploits/http_fingerprint")
+async def fingerprint_http(body: dict):
+    from backend.phases.exploit import http_fingerprint
+    url = body.get("url", "")
+    if not url:
+        raise HTTPException(status_code=400, detail="url is required")
+    result = await http_fingerprint(url)
+    return result
+
+
+@app.post("/api/exploits/cred_check")
+async def check_creds(body: dict):
+    from backend.phases.exploit import default_cred_check
+    host    = body.get("host", "")
+    port    = int(body.get("port", 80))
+    service = body.get("service", "http")
+    url     = body.get("url", None)
+    if host and not is_in_scope(host):
+        raise HTTPException(status_code=403, detail=f"Target {host} is not in scope.")
+    audit_log("CRED_CHECK_REQUEST", target=host, detail=f"service={service} port={port}")
+    result = await default_cred_check(host, port, service, url)
+    return result
+
+
+@app.post("/api/exploits/chain_analysis")
+async def chain_analysis(body: dict):
+    from ai.analyst import _call_openrouter
+    from backend.database import get_db as _get_db, Finding as _Finding, Host as _Host
+    host_ip    = body.get("host_ip", "")
+    session_id = body.get("session_id", "")
+    db = next(_get_db())
+    try:
+        host = db.query(_Host).filter(_Host.ip == host_ip).first()
+        findings = db.query(_Finding).filter(_Finding.session_id == session_id).all()
+        host_findings = [f for f in findings if f.host_id == (host.id if host else -1)]
+        findings_data = [
+            {"title": f.title, "severity": f.severity, "cve_id": f.cve_id, "cvss": f.cvss_score}
+            for f in host_findings
+        ]
+        host_data = {
+            "ip": host_ip,
+            "os_guess": host.os_guess if host else "unknown",
+            "ports": [{"port": p.port, "service": p.service} for p in (host.ports if host else [])],
+        }
+        summary = await _call_openrouter(
+            system="You are a senior penetration tester on an authorized engagement. Be concise and technical.",
+            user=prompts_chain(host_data, findings_data),
+            max_tokens=800,
+        )
+        return {"analysis": summary, "host": host_ip, "findings_count": len(host_findings)}
+    except Exception as e:
+        return {"analysis": f"Chain analysis failed: {e}", "host": host_ip, "findings_count": 0}
+    finally:
+        db.close()
+
+
+def prompts_chain(host: dict, findings: list) -> str:
+    return f"""You are a senior penetration tester. Analyze these vulnerabilities on the same host and identify multi-step attack chains.
+
+Host: {host.get('ip')} | OS: {host.get('os_guess', 'unknown')}
+Open ports: {host.get('ports', [])}
+
+Findings ({len(findings)} total):
+{json.dumps(findings, indent=2)[:2000]}
+
+Identify 2-3 realistic attack chains that combine multiple findings. For each chain:
+- Chain name
+- Steps in order (which finding enables which)
+- Combined severity rating
+- What the attacker achieves"""
 
 
 @app.post("/api/exploits/run")

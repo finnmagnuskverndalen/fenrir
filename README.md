@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="Fenrir" width="720"/>
+  <img src="logo.png" alt="Fenrir" width="900"/>
 </p>
 
 <p align="center">
@@ -32,6 +32,12 @@ Inspired by Armitage, rebuilt from scratch with a modern dark UI, a 5-phase work
 - **Deep service scan** — nmap `-sV -sC` per host, identifies services, versions, and banners. Runs sequentially to prevent memory overload
 - **Vulnerability scan** — nuclei with 5,000+ templates scans all discovered HTTP/HTTPS services. Findings enriched with CVE IDs and CVSS scores from the NVD API
 - **Exploit lookup** — searchsploit automatically matches findings to exploit-db entries. Metasploit module search per CVE
+- **GitHub PoC linker** — queries poc-in-github.motikan2010.net to surface public proof-of-concept repositories for each CVE, sorted by star count
+- **TLS/SSL inspector** — inspects certificate expiry, SAN list, cipher suite, protocol version (TLS 1.0/1.1 weak protocol detection), and self-signed detection without any external tools
+- **HTTP fingerprinter** — sends HEAD + OPTIONS requests and probes 9 sensitive paths (`.env`, `.git/HEAD`, `phpinfo.php`, `wp-login.php`, etc.) to map attack surface
+- **Default credential check** — tests 11 common credential pairs against HTTP Basic Auth and FTP. Respects `CRED_CHECK_ENABLED` flag. Every success is written to the audit log
+- **AI Attack Playbook** — DeepSeek generates a full exploitation playbook per finding: prerequisites, exploitation steps, post-exploitation, detection evasion, verification command
+- **Attack Chain Analysis** — AI analyzes all findings on a host together and identifies multi-step kill chains, combining vulnerabilities to show combined severity and end-goal impact
 
 ### AI
 - **Per-finding analysis** — DeepSeek analyzes every critical and high severity finding individually: what it is, how it's exploited, how to fix it
@@ -68,10 +74,19 @@ Phase 3 — Vulnerability Scan
   DeepSeek analyzes each critical/high finding
   AI writes a threat summary
 
-Phase 4 — Exploitation
-  searchsploit looks up exploit-db matches per finding
-  Metasploit searches for matching modules per CVE
-  AI runs exploit recon: attack surface, likely impact, method
+Phase 4 — Exploitation (4-tab workbench)
+  INTEL tab:
+    searchsploit looks up exploit-db matches per finding
+    GitHub PoC linker surfaces public CVE exploit repos
+  MODULES tab:
+    Metasploit searches for matching modules per CVE
+    TLS/SSL inspector checks cert validity, cipher, protocol
+  ACTIVE tab:
+    HTTP fingerprinter probes headers and sensitive paths
+    Default credential check against HTTP and FTP services
+  PLAYBOOK tab:
+    AI generates full attack playbook per finding
+    Chain Analysis identifies multi-step kill chains across all findings
   Dry-run generates exact msfconsole command
   Live execution available with DRY_RUN=false
 
@@ -97,6 +112,10 @@ Phase 5 — Report
 | Port scanning | nmap -sV -sC |
 | Vulnerability scanning | nuclei v3 + NVD API |
 | Exploit lookup | searchsploit, Metasploit Framework |
+| PoC discovery | poc-in-github.motikan2010.net API |
+| TLS inspection | Python stdlib `ssl` / `socket` |
+| HTTP probing | httpx |
+| Credential testing | httpx (HTTP Basic Auth), ftplib (FTP) |
 
 ---
 
@@ -200,6 +219,9 @@ Open **http://localhost:5173**
 | `DRY_RUN` | `true` | Set `false` to enable real exploitation |
 | `ALLOW_PUBLIC_IPS` | `false` | Set `true` to scan external targets |
 | `NVD_API_KEY` | — | Optional. Increases NVD rate limits |
+| `CRED_CHECK_ENABLED` | `false` | Set `true` to enable default credential testing |
+| `POC_LOOKUP_ENABLED` | `true` | Set `false` to disable GitHub PoC lookup |
+| `TLS_PROBE_ENABLED` | `true` | Set `false` to disable TLS/SSL inspection |
 | `HOST` | `127.0.0.1` | Backend bind address |
 | `PORT` | `8765` | Backend port |
 
@@ -232,7 +254,7 @@ fenrir/
 │       ├── host_discovery.py    # ARP sweep + parallel OS detection
 │       ├── port_scan.py         # nmap -sV -sC, skips redundant ping sweep
 │       ├── vuln_scan.py         # nuclei + NVD enrichment + deduplication
-│       └── exploit.py           # searchsploit + Metasploit module search
+│           └── exploit.py           # searchsploit, MSF, GitHub PoC, TLS probe, HTTP fingerprint, cred check
 ├── ai/
 │   ├── analyst.py               # Per-finding analysis, retry logic
 │   └── reporter.py              # Pentest report generation
@@ -253,7 +275,7 @@ fenrir/
 │           ├── Phase1Detection.jsx    # ARP sweep, OS fingerprint, network map
 │           ├── Phase2PortScan.jsx     # Port scan with progress bar
 │           ├── Phase3VulnScan.jsx     # Vuln scan, findings list, AI analysis
-│           ├── Phase4Exploitation.jsx # Exploit lookup, MSF modules, agent log
+│           ├── Phase4Exploitation.jsx # 4-tab exploitation workbench (INTEL/MODULES/ACTIVE/PLAYBOOK)
 │           └── Phase5Report.jsx      # Report generation and download
 ├── reports/                     # Generated reports (auto-created)
 ├── Screenshot.png               # UI screenshot
@@ -300,6 +322,12 @@ Fenrir has multiple layers of safety controls:
 | POST | `/api/exploits/lookup` | searchsploit lookup |
 | GET | `/api/exploits/metasploit/{cve}` | Metasploit module search |
 | POST | `/api/exploits/run` | Run exploit (dry-run by default) |
+| GET | `/api/exploits/finding/{id}` | Stored exploits for a finding |
+| GET | `/api/exploits/poc/{cve}` | GitHub PoC repositories for a CVE |
+| POST | `/api/exploits/tls_probe` | TLS/SSL certificate and cipher inspection |
+| POST | `/api/exploits/http_fingerprint` | HTTP header and path fingerprinting |
+| POST | `/api/exploits/cred_check` | Default credential testing (HTTP/FTP) |
+| POST | `/api/exploits/chain_analysis` | AI kill chain analysis for a host |
 | GET | `/api/health` | Backend status and active scans |
 | GET | `/api/audit` | Audit log entries |
 | GET | `/api/scope` | Authorized scope |
@@ -319,7 +347,8 @@ Fenrir has multiple layers of safety controls:
 - [x] **M8** — Fenrir v2 UI (5-phase war room, live terminal, host cards, network map)
 - [x] **M9** — Stability and UX overhaul (singleton WebSocket, deduplication, sequential scanning, per-finding AI, retry logic, terminal filters, session isolation)
 - [x] **M10** — UI redesign (black/red hacker theme, JetBrains Mono, CRT scanlines, red glow)
-- [ ] **M11** — Docker packaging, PDF export, API authentication
+- [x] **M11** — Exploitation workbench (GitHub PoC, TLS inspector, HTTP fingerprinter, default cred check, AI attack playbooks, kill chain analysis)
+- [ ] **M12** — Docker packaging, PDF export, API authentication
 
 ---
 

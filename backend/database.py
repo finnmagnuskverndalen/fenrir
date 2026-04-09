@@ -67,6 +67,9 @@ class Finding(Base):
     exploit_suggestion = Column(Text, nullable=True)
     detected_by = Column(String, nullable=True)  # nmap, nuclei, manual
     discovered_at = Column(DateTime, default=datetime.utcnow)
+    poc_links    = Column(Text, nullable=True)   # JSON list of GitHub POC repos
+    tls_result   = Column(Text, nullable=True)   # JSON TLS probe result
+    cred_results = Column(Text, nullable=True)   # JSON cred check result
     host = relationship("Host", back_populates="findings")
 
 

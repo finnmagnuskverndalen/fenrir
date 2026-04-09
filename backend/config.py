@@ -29,6 +29,9 @@ NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 # ── safety ─────────────────────────────────────────────────────────────────
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
 ALLOW_PUBLIC_IPS = os.getenv("ALLOW_PUBLIC_IPS", "false").lower() == "true"
+CRED_CHECK_ENABLED = os.getenv("CRED_CHECK_ENABLED", "false").lower() == "true"
+POC_LOOKUP_ENABLED = os.getenv("POC_LOOKUP_ENABLED", "true").lower() == "true"
+TLS_PROBE_ENABLED  = os.getenv("TLS_PROBE_ENABLED",  "true").lower() == "true"
 
 
 def load_scope() -> list[ipaddress.IPv4Network]:
