@@ -18,6 +18,12 @@ Inspired by Armitage, rebuilt from scratch with a modern dark UI, a 5-phase work
 
 ---
 
+## Screenshot
+
+![Fenrir War Room](Screenshot.png)
+
+---
+
 ## Features
 
 ### Scanning
@@ -37,7 +43,7 @@ Inspired by Armitage, rebuilt from scratch with a modern dark UI, a 5-phase work
 - **5-phase war room** — Detection → Port Scan → Vuln Scan → Exploitation → Report. Phase tabs with live status indicators
 - **Network topology map** — SVG visualization showing hosts as nodes, color-coded by severity, animated pulse on compromised hosts
 - **Live terminal** — all tool output streams to a filterable console at the bottom. Filter by level: ALL / ERROR / WARN / OK / INFO. Pause and resume scrolling
-- **Host cards** — show OS icon, open ports, top vulnerability severity. Update live as scans progress
+- **Host cards** — show OS type, open ports, top vulnerability severity. Update live as scans progress
 - **Deduplication** — findings deduplicated at both the nuclei output and database level
 - **Session isolation** — hosts and findings scoped to the active scan session, no cross-session contamination
 
@@ -83,7 +89,7 @@ Phase 5 — Report
 | Component | Technology |
 |---|---|
 | Frontend | React 18, Vite, Zustand |
-| Typography | Inter (UI), JetBrains Mono (terminal/code) |
+| Typography | JetBrains Mono |
 | Backend | FastAPI, Python 3.12 |
 | Database | SQLite via SQLAlchemy |
 | AI | OpenRouter — DeepSeek Chat |
@@ -187,8 +193,6 @@ Open **http://localhost:5173**
 
 ## Configuration
 
-All configuration is in `.env`:
-
 | Variable | Default | Description |
 |---|---|---|
 | `OPENROUTER_API_KEY` | — | Required. Get free at openrouter.ai/keys |
@@ -252,6 +256,7 @@ fenrir/
 │           ├── Phase4Exploitation.jsx # Exploit lookup, MSF modules, agent log
 │           └── Phase5Report.jsx      # Report generation and download
 ├── reports/                     # Generated reports (auto-created)
+├── Screenshot.png               # UI screenshot
 ├── start.sh                     # Single command launcher
 ├── run.py                       # Backend entrypoint
 ├── scope.txt                    # Authorized CIDR ranges
@@ -313,7 +318,8 @@ Fenrir has multiple layers of safety controls:
 - [x] **M7** — Exploit layer (searchsploit, Metasploit module search, dry-run)
 - [x] **M8** — Fenrir v2 UI (5-phase war room, live terminal, host cards, network map)
 - [x] **M9** — Stability and UX overhaul (singleton WebSocket, deduplication, sequential scanning, per-finding AI, retry logic, terminal filters, session isolation)
-- [ ] **M10** — Docker packaging, PDF export, API authentication
+- [x] **M10** — UI redesign (black/red hacker theme, JetBrains Mono, CRT scanlines, red glow)
+- [ ] **M11** — Docker packaging, PDF export, API authentication
 
 ---
 
