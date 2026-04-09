@@ -29,7 +29,7 @@ export default function Scope() {
         scope.map((cidr, i) => (
           <div key={i} style={{
             background: '#111', border: '1px solid #1f1f1f', borderRadius: 4,
-            padding: '8px 12px', marginBottom: 6, color: '#39d353',
+            padding: '8px 12px', marginBottom: 6, color: '#c8c8c8',
             fontFamily: 'monospace', fontSize: 13,
             display: 'flex', alignItems: 'center', gap: 8,
           }}>

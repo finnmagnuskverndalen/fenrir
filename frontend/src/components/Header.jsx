@@ -55,7 +55,7 @@ export default function Header() {
         {PHASES.map(p => {
           const st = phaseStatus[p.id] || 'idle'
           const active = currentPhase === p.id
-          const stColor = st === 'complete' ? '#22c55e' : st === 'running' ? 'var(--amber)' : st === 'failed' ? 'var(--red-bright)' : 'var(--text-4)'
+          const stColor = st === 'complete' ? '#c8c8c8' : st === 'running' ? 'var(--amber)' : st === 'failed' ? 'var(--red-bright)' : 'var(--text-4)'
           return (
             <button key={p.id} onClick={() => setPhase(p.id)} style={{
               background: active ? 'rgba(229,62,62,0.06)' : 'transparent',
@@ -82,7 +82,7 @@ export default function Header() {
               {st === 'running' && (
                 <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)', animation: 'pulse 0.8s infinite', flexShrink: 0, boxShadow: '0 0 6px var(--amber)' }} />
               )}
-              {st === 'complete' && <span style={{ color: '#22c55e', fontSize: 10, lineHeight: 1 }}>✓</span>}
+              {st === 'complete' && <span style={{ color: '#c8c8c8', fontSize: 10, lineHeight: 1 }}>✓</span>}
               {st === 'failed'   && <span style={{ color: 'var(--red-bright)', fontSize: 10, lineHeight: 1 }}>✗</span>}
             </button>
           )

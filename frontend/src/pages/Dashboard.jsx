@@ -12,7 +12,7 @@ const severityColor = {
 }
 
 const levelColor = {
-  ok:    '#39d353',
+  ok:    '#c8c8c8',
   warn:  '#d69e2e',
   error: '#e53e3e',
   info:  '#4a9eff',
@@ -64,12 +64,12 @@ export default function Dashboard() {
           {PHASES.map(phase => {
             const status = phases[phase]
             const barColor =
-              status === 'complete' ? '#39d353' :
+              status === 'complete' ? '#c8c8c8' :
               status === 'running'  ? '#4a9eff' :
               status === 'failed'   ? '#e53e3e' : '#1f1f1f'
             const labelColor =
               status === 'running'  ? '#4a9eff' :
-              status === 'complete' ? '#39d353' :
+              status === 'complete' ? '#c8c8c8' :
               status === 'failed'   ? '#e53e3e' : '#2a2a2a'
             return (
               <div key={phase} style={{ flex: 1 }}>

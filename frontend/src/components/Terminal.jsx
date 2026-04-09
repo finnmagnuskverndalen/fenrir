@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useFenrir } from '../store/fenrirStore'
 
 const levelColor = {
-  OK:    '#22c55e',
+  OK:    '#c8c8c8',
   WARN:  '#f59e0b',
   ERROR: '#ff2020',
   INFO:  'rgba(229,62,62,0.7)',

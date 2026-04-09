@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useWS } from '../components/WebSocketProvider'
 
-const stateColor = { open: '#39d353', filtered: '#d69e2e', closed: '#444' }
+const stateColor = { open: '#c8c8c8', filtered: '#d69e2e', closed: '#444' }
 
 export default function Hosts() {
   const { hosts } = useWS()
@@ -29,7 +29,7 @@ export default function Hosts() {
             >
               {/* Host header */}
               <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#39d353', flexShrink: 0 }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#c8c8c8', flexShrink: 0 }} />
                 <span style={{ color: '#e5e5e5', fontFamily: 'monospace', fontSize: 14, fontWeight: 500 }}>
                   {host.ip}
                 </span>
