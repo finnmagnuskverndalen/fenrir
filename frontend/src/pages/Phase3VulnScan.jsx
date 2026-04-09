@@ -21,6 +21,7 @@ export default function Phase3VulnScan() {
   const { hosts, selectedHosts, toggleHostSelect, selectAllHosts, clearHostSelect, scanning, setScanning, setPhaseStatus, addTerminalLine, setPhase } = useFenrir()
   const [findings, setFindings] = useState([])
   const [dryRun, setDryRun] = useState(false)
+  const [scanMode, setScanMode] = useState('fast')
   const [expanded, setExpanded] = useState(null)
   const [sevFilter, setSevFilter] = useState('all')
   const [aiSummary, setAiSummary] = useState('')
@@ -53,7 +54,7 @@ export default function Phase3VulnScan() {
       addTerminalLine(`[INFO] [phase3] nuclei -> ${ip} (${i+1}/${targets.length})`)
       const res = await fetch('/api/scan/start', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target: ip, phases: ['vulns', 'ai'], dry_run: dryRun }),
+        body: JSON.stringify({ target: ip, phases: ['vulns', 'ai'], dry_run: dryRun, scan_mode: scanMode }),
       })
       if (!res.ok) { const d = await res.json(); addTerminalLine(`[WARN] [phase3] ${ip}: ${d.detail}`) }
 
@@ -116,6 +117,29 @@ export default function Phase3VulnScan() {
               {selectedHosts.size} HOST{selectedHosts.size !== 1 ? 'S' : ''} SELECTED
             </div>
           )}
+
+          {/* Scan mode selector */}
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:8, color:'var(--text-4)', letterSpacing:'0.1em', marginBottom:6 }}>SCAN_MODE</div>
+            <div style={{ display:'flex', gap:4 }}>
+              {['fast','extensive'].map(mode => (
+                <button key={mode} onClick={() => setScanMode(mode)} style={{
+                  flex:1, height:26, border:`1px solid ${scanMode===mode?'var(--red-border)':'var(--border)'}`,
+                  borderRadius:2, background: scanMode===mode?'rgba(229,62,62,0.1)':'transparent',
+                  color: scanMode===mode?'var(--red)':'var(--text-4)',
+                  fontFamily:'var(--mono)', fontSize:9, fontWeight:700,
+                  letterSpacing:'0.08em', cursor:'pointer',
+                }}>
+                  {mode === 'fast' ? '⚡ FAST' : '🔬 EXTENSIVE'}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize:8, color:'var(--text-4)', marginTop:5, lineHeight:1.5 }}>
+              {scanMode === 'fast'
+                ? 'critical/high · CVE+misconfig tags · ~5 min'
+                : 'all severities · all templates · ~20 min'}
+            </div>
+          </div>
 
           <div onClick={() => setDryRun(!dryRun)} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:12 }}>
             <div style={{

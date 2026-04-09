@@ -8,15 +8,16 @@ from backend.config import NVD_API_KEY, NVD_BASE_URL
 from backend.database import SessionLocal, Host, Port, Finding
 
 
-async def run(session_id: str, target: str, dry_run: bool):
-    await ws.emit("info", "vulns", f"Starting vulnerability scan on {target}")
-    audit_log("PHASE_VULNS_START", target=target, dry_run=dry_run)
+async def run(session_id: str, target: str, dry_run: bool, scan_mode: str = "fast"):
+    mode_label = "FAST" if scan_mode == "fast" else "EXTENSIVE"
+    await ws.emit("info", "vulns", f"Starting vulnerability scan on {target} [{mode_label}]")
+    audit_log("PHASE_VULNS_START", target=target, dry_run=dry_run, detail=f"mode={scan_mode}")
 
     if dry_run:
-        await ws.emit("warn", "vulns", f"[DRY RUN] Would run: nuclei -target {target}")
+        await ws.emit("warn", "vulns", f"[DRY RUN] Would run: nuclei -target {target} [{mode_label}]")
         return []
 
-    findings = await _run_nuclei(session_id, target)
+    findings = await _run_nuclei(session_id, target, scan_mode=scan_mode)
     await ws.emit("ok", "vulns", f"Nuclei complete. {len(findings)} findings. Enriching with NVD...")
 
     for finding in findings:
@@ -31,7 +32,7 @@ async def run(session_id: str, target: str, dry_run: bool):
     return findings
 
 
-async def _run_nuclei(session_id: str, target: str) -> list:
+async def _run_nuclei(session_id: str, target: str, scan_mode: str = "fast") -> list:
     findings = []
 
     # Find nuclei binary — check common locations
@@ -60,18 +61,40 @@ async def _run_nuclei(session_id: str, target: str) -> list:
 
     await ws.emit("info", "vulns", f"Scanning {len(targets)} target(s): {', '.join(targets[:3])}{'...' if len(targets) > 3 else ''}")
 
+    if scan_mode == "fast":
+        # Fast: only critical/high, focused tags, higher concurrency, short timeout
+        mode_flags = [
+            "-severity", "critical,high",
+            "-tags", "cve,exposure,misconfig,default-login,tech",
+            "-c", "50",
+            "-bulk-size", "25",
+            "-rate-limit", "150",
+            "-timeout", "10",
+        ]
+        timeout_secs = 300  # 5 min max
+    else:
+        # Extensive: all severities, all templates, balanced concurrency
+        mode_flags = [
+            "-severity", "critical,high,medium,low,info",
+            "-c", "25",
+            "-bulk-size", "15",
+            "-rate-limit", "100",
+            "-timeout", "30",
+        ]
+        timeout_secs = 1200  # 20 min max
+
     cmd = [
         nuclei_bin,
         "-target", ",".join(targets),
-        "-severity", "critical,high,medium,low,info",
+        *mode_flags,
         "-json-export", "/tmp/fenrir_nuclei_out.json",
         "-silent",
         "-retries", "1",
-        "-timeout", "30",
-        "-no-interactsh",  # disable interactsh to speed up
+        "-no-interactsh",
     ]
 
-    await ws.emit("info", "vulns", f"Running: nuclei {' '.join(cmd[1:4])} ...")
+    mode_label = "FAST (~5min)" if scan_mode == "fast" else "EXTENSIVE (~20min)"
+    await ws.emit("info", "vulns", f"Running nuclei [{mode_label}]: {' '.join(cmd[1:4])} ...")
 
     try:
         # Clean up any previous output
@@ -86,7 +109,7 @@ async def _run_nuclei(session_id: str, target: str) -> list:
             env={**os.environ, "HOME": os.path.expanduser("~")},
         )
 
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=1200)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_secs)
 
         stderr_text = stderr.decode(errors="ignore")
         stdout_text = stdout.decode(errors="ignore")
@@ -150,7 +173,7 @@ async def _run_nuclei(session_id: str, target: str) -> list:
         await ws.emit("ok", "vulns", f"nuclei done — {len(findings)} findings (exit code {proc.returncode})")
 
     except asyncio.TimeoutError:
-        await ws.emit("warn", "vulns", "nuclei timed out after 20 minutes")
+        await ws.emit("warn", "vulns", f"nuclei timed out after {timeout_secs // 60} minutes")
     except FileNotFoundError as e:
         await ws.emit("error", "vulns", f"nuclei not found: {e}")
     except Exception as e:

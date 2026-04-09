@@ -50,6 +50,7 @@ class ScanRequest(BaseModel):
     target: str
     phases: list[str] = ["discovery"]
     dry_run: bool = True
+    scan_mode: str = "fast"  # "fast" or "extensive"
 
 
 @app.post("/api/scan/start")
@@ -70,11 +71,11 @@ async def start_scan(req: ScanRequest, db: Session = Depends(get_db)):
 
     audit_log("SCAN_STARTED", target=target, detail=f"phases={req.phases}", dry_run=req.dry_run)
     await ws.emit("ok", "init", f"Scan started against {target}", {"session_id": session_id})
-    asyncio.create_task(run_scan(session_id, target, req.phases, req.dry_run))
+    asyncio.create_task(run_scan(session_id, target, req.phases, req.dry_run, req.scan_mode))
     return {"session_id": session_id, "status": "started"}
 
 
-async def run_scan(session_id: str, target: str, phases: list[str], dry_run: bool):
+async def run_scan(session_id: str, target: str, phases: list[str], dry_run: bool, scan_mode: str = "fast"):
     _active_scans.add(target)
     try:
         from backend.phases.dns_whois import run as run_dns
@@ -97,7 +98,8 @@ async def run_scan(session_id: str, target: str, phases: list[str], dry_run: boo
             if phase in phase_map:
                 await ws.emit_phase_update(phase, "running")
                 try:
-                    await phase_map[phase](session_id, target, dry_run)
+                    kwargs = {"scan_mode": scan_mode} if phase == "vulns" else {}
+                    await phase_map[phase](session_id, target, dry_run, **kwargs)
                     await ws.emit_phase_update(phase, "complete")
                 except Exception as e:
                     await ws.emit("error", phase, f"Phase {phase} failed: {e}")
