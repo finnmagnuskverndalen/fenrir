@@ -27,7 +27,8 @@ audit.log
 
 # Scan output
 scan_results/
-reports/output/
+reports/
+settings.json
 
 # Node / frontend build
 node_modules/
