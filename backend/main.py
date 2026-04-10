@@ -192,17 +192,19 @@ def list_reports():
 @app.get("/api/reports/download/{filename}")
 async def download_report(filename: str):
     from fastapi.responses import FileResponse
-    path = f"reports/{filename}"
-    if not os.path.exists(path):
+    from pathlib import Path
+    safe_name = Path(filename).name  # strip any directory traversal
+    path = Path("reports") / safe_name
+    if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Report not found")
-    return FileResponse(path, media_type="text/markdown", filename=filename)
+    return FileResponse(str(path), media_type="text/markdown", filename=safe_name,
+                        headers={"Content-Disposition": f"attachment; filename={safe_name}"})
 
 
 @app.post("/api/exploits/lookup")
 async def lookup_exploits(body: dict):
     from backend.phases.exploit import searchsploit_lookup
-    results = await searchsploit_lookup(body.get("cve_id"), body.get("title", ""))
-    return {"results": results}
+    return await searchsploit_lookup(body.get("cve_id"), body.get("title", ""))
 
 
 @app.get("/api/exploits/finding/{finding_id}")
@@ -239,9 +241,13 @@ async def probe_tls(body: dict):
 @app.post("/api/exploits/http_fingerprint")
 async def fingerprint_http(body: dict):
     from backend.phases.exploit import http_fingerprint
+    from urllib.parse import urlparse
     url = body.get("url", "")
     if not url:
         raise HTTPException(status_code=400, detail="url is required")
+    host = urlparse(url).hostname or ""
+    if host and not is_in_scope(host):
+        raise HTTPException(status_code=403, detail=f"Target {host} is not in scope.")
     result = await http_fingerprint(url)
     return result
 
@@ -345,7 +351,13 @@ def get_all_findings(severity: str = None, db: Session = Depends(get_db)):
     q = db.query(Finding)
     if severity:
         q = q.filter(Finding.severity == severity)
-    return q.order_by(Finding.discovered_at.desc()).limit(200).all()
+    findings = q.order_by(Finding.discovered_at.desc()).limit(200).all()
+    result = []
+    for f in findings:
+        d = {c.name: getattr(f, c.name) for c in f.__table__.columns}
+        d["host_ip"] = f.host.ip if f.host else None
+        result.append(d)
+    return result
 
 
 @app.get("/api/hosts")

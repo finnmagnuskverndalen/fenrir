@@ -62,7 +62,7 @@ async def generate_report(session_id: str) -> str:
         )
 
         os.makedirs("reports", exist_ok=True)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"reports/fenrir_report_{session_id[:8]}_{timestamp}.md"
         with open(filename, "w") as f:
             f.write(report)

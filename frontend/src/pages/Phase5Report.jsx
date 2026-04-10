@@ -3,6 +3,16 @@ import { useFenrir } from '../store/fenrirStore'
 
 const sevColor = { critical:'#ff2020', high:'#ff5500', medium:'#f59e0b', low:'#883333', info:'rgba(229,62,62,0.5)' }
 
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function mdInline(raw) {
+  return escHtml(raw)
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text)">$1</strong>')
+    .replace(/`(.*?)`/g, '<code style="background:var(--bg-3);color:var(--red);padding:1px 6px;border-radius:2px;font-family:var(--mono);font-size:10px">$1</code>')
+}
+
 function Markdown({ text }) {
   if (!text) return null
   return (
@@ -14,22 +24,29 @@ function Markdown({ text }) {
         if (line.startsWith('- ') || line.startsWith('* ')) return (
           <div key={i} style={{ display:'flex', gap:10, paddingLeft:12, color:'#c0c0c0', fontSize:12, lineHeight:1.8 }}>
             <span style={{ color:'var(--red)', flexShrink:0 }}>&gt;</span>
-            <span dangerouslySetInnerHTML={{ __html: line.replace(/^[-*] /,'').replace(/\*\*(.*?)\*\*/g,'<strong style="color:var(--text)">$1</strong>') }} />
+            <span dangerouslySetInnerHTML={{ __html: mdInline(line.replace(/^[-*] /,'')) }} />
           </div>
         )
         if (/^\d+\. /.test(line)) return (
           <div key={i} style={{ display:'flex', gap:10, paddingLeft:12, color:'#c0c0c0', fontSize:12, lineHeight:1.8 }}>
             <span style={{ color:'#888', flexShrink:0 }}>{line.match(/^\d+/)[0]}.</span>
-            <span dangerouslySetInnerHTML={{ __html: line.replace(/^\d+\. /,'').replace(/\*\*(.*?)\*\*/g,'<strong style="color:var(--text)">$1</strong>') }} />
+            <span dangerouslySetInnerHTML={{ __html: mdInline(line.replace(/^\d+\. /,'')) }} />
           </div>
         )
-        if (line.startsWith('|')) return <div key={i} style={{ fontFamily:'var(--mono)', fontSize:10, color:'#b0b0b0', padding:'3px 0', borderBottom:'1px solid var(--border)' }}>{line}</div>
+        if (line.startsWith('|')) return <div key={i} style={{ fontFamily:'var(--mono)', fontSize:10, color:'#b0b0b0', padding:'3px 0', borderBottom:'1px solid var(--border)' }}>{escHtml(line)}</div>
         if (line.match(/^---+$/)) return <hr key={i} style={{ border:'none', borderTop:'1px solid var(--border)', margin:'12px 0' }} />
         if (!line.trim()) return <div key={i} style={{ height:8 }} />
-        return <div key={i} style={{ color:'#c0c0c0', fontSize:12, lineHeight:1.9 }} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g,'<strong style="color:#e8e8e8">$1</strong>').replace(/`(.*?)`/g,'<code style="background:var(--bg-3);color:var(--red);padding:1px 6px;border-radius:2px;font-family:var(--mono);font-size:10px">$1</code>') }} />
+        return <div key={i} style={{ color:'#c0c0c0', fontSize:12, lineHeight:1.9 }} dangerouslySetInnerHTML={{ __html: mdInline(line) }} />
       })}
     </div>
   )
+}
+
+function parseReportDate(filename) {
+  const m = filename.match(/_(\d{8})_(\d{4,6})\.md$/)
+  if (!m) return ''
+  const d = m[1], t = m[2]
+  return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)} ${t.slice(0,2)}:${t.slice(2,4)}`
 }
 
 export default function Phase5Report() {
@@ -39,14 +56,20 @@ export default function Phase5Report() {
   const [report, setReport] = useState('')
   const [error, setError] = useState('')
   const [savedReports, setSavedReports] = useState([])
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    fetch('/api/sessions').then(r=>r.json()).then(d=>{ setSessions(d); if (d.length>0) setSessionId(d[0].id) }).catch(()=>{})
+    fetch('/api/sessions').then(r=>r.json()).then(d=>{ setSessions(d); if (d.length>0) setSessionId(d[0].id) }).catch(()=>setError('Could not load sessions'))
     fetch('/api/reports/list').then(r=>r.json()).then(setSavedReports).catch(()=>{})
   }, [])
 
   async function generate() {
     if (!sessionId) return
+    const sessionFindings = findings.filter(f => f.session_id === sessionId)
+    if (sessionFindings.length === 0) {
+      setError('No findings for this session — run Phase 1-3 first')
+      return
+    }
     setLoading(true); setError(''); setReport('')
     try {
       const res = await fetch(`/api/reports/generate/${sessionId}`, { method:'POST' })
@@ -63,6 +86,11 @@ export default function Phase5Report() {
     const blob = new Blob([report], { type:'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = `fenrir-report-${sessionId.slice(0,8)}.md`; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  function copyReport() {
+    navigator.clipboard.writeText(report).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   }
 
   const counts = ['critical','high','medium','low'].reduce((acc,s) => ({ ...acc, [s]: findings.filter(f=>f.severity===s).length }), {})
@@ -89,7 +117,7 @@ export default function Phase5Report() {
             color:'#e8e8e8', padding:'8px 10px', fontFamily:'var(--mono)', fontSize:11, outline:'none', marginBottom:12,
             cursor:'pointer',
           }}>
-            {sessions.length===0 && <option value="">NO SESSIONS</option>}
+            {sessions.length===0 && <option value="">NO SESSIONS — RUN PHASE 1 FIRST</option>}
             {sessions.map(s=><option key={s.id} value={s.id}>{s.target} — {s.started_at?.slice(0,16).replace('T',' ')}</option>)}
           </select>
 
@@ -111,12 +139,22 @@ export default function Phase5Report() {
           </button>
 
           {report && (
-            <button onClick={download} style={{
-              width:'100%', height:34, marginTop:8,
-              background:'transparent', border:'1px solid var(--border)', borderRadius:2,
-              color:'var(--text-3)', fontFamily:'var(--mono)', fontWeight:700, fontSize:10, cursor:'pointer',
-              letterSpacing:'0.1em',
-            }}>DOWNLOAD .MD</button>
+            <>
+              <button onClick={download} style={{
+                width:'100%', height:34, marginTop:8,
+                background:'transparent', border:'1px solid var(--border)', borderRadius:2,
+                color:'var(--text-3)', fontFamily:'var(--mono)', fontWeight:700, fontSize:10, cursor:'pointer',
+                letterSpacing:'0.1em',
+              }}>DOWNLOAD .MD</button>
+              <button onClick={copyReport} style={{
+                width:'100%', height:34, marginTop:6,
+                background: copied ? 'rgba(200,255,200,0.05)' : 'transparent',
+                border:`1px solid ${copied ? 'rgba(100,200,100,0.3)' : 'var(--border)'}`,
+                borderRadius:2, color: copied ? '#6dc26d' : 'var(--text-3)',
+                fontFamily:'var(--mono)', fontWeight:700, fontSize:10, cursor:'pointer',
+                letterSpacing:'0.1em', transition:'all 0.15s',
+              }}>{copied ? 'COPIED!' : 'COPY TO CLIPBOARD'}</button>
+            </>
           )}
           {error && (
             <div style={{ marginTop:10, padding:'8px 10px', background:'rgba(255,32,32,0.06)', border:'1px solid rgba(255,32,32,0.25)', borderRadius:2, fontSize:10, color:'#ff2020', fontFamily:'var(--mono)' }}>
@@ -150,12 +188,11 @@ export default function Phase5Report() {
               {savedReports.map((r,i)=>(
                 <a key={i} href={`/api/reports/download/${r.filename}`} style={{
                   fontFamily:'var(--mono)', fontSize:9, color:'#aaa',
-                  padding:'4px 0', borderBottom:'1px solid var(--border)',
-                  display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
-                  letterSpacing:'0.04em',
-                  transition:'color 0.12s',
+                  padding:'5px 0', borderBottom:'1px solid var(--border)',
+                  display:'block', letterSpacing:'0.04em', transition:'color 0.12s',
                 }}>
-                  &gt; {r.filename}
+                  <div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>&gt; {r.filename}</div>
+                  {parseReportDate(r.filename) && <div style={{ fontSize:8, color:'var(--text-4)', marginTop:1 }}>{parseReportDate(r.filename)}</div>}
                 </a>
               ))}
             </div>

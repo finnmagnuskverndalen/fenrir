@@ -50,7 +50,8 @@ export const useFenrir = create((set) => ({
   })),
 
   addFinding: (f) => set(s => {
-    const exists = s.findings.find(x => x.title === f.title && x.host === f.host)
+    if (f.id && s.findings.find(x => x.id === f.id)) return {}
+    const exists = s.findings.find(x => x.title === f.title && (x.host_ip || x.host) === (f.host_ip || f.host))
     if (exists) return {}
     return { findings: [f, ...s.findings] }
   }),
