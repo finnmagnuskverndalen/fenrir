@@ -30,6 +30,7 @@ Inspired by Armitage, rebuilt from scratch with a modern dark UI, a 5-phase work
 - **ARP sweep** — discovers all live hosts on a local network in under 3 seconds, cannot be blocked by host firewalls
 - **Parallel OS detection** — fingerprints operating systems on up to 5 hosts simultaneously using nmap `-O`
 - **Deep service scan** — nmap `-sV -sC` per host, identifies services, versions, and banners. Runs sequentially to prevent memory overload
+- **OS detection (port scan)** — optional dedicated nmap `-O --osscan-guess` scan after port scan, using discovered open ports for improved fingerprint accuracy. Toggle per scan run
 - **Vulnerability scan** — nuclei with 5,000+ templates scans all discovered HTTP/HTTPS services. Fast and Extensive scan modes. Findings enriched with CVE IDs and CVSS scores from the NVD API
 - **Exploit lookup** — searchsploit automatically matches findings to exploit-db entries. Metasploit module search per CVE
 - **GitHub PoC linker** — queries poc-in-github.motikan2010.net to surface public proof-of-concept repositories for each CVE, sorted by star count
@@ -67,6 +68,7 @@ Phase 1 — Detection
 Phase 2 — Port Scan
   nmap -sV -sC per selected host (sequential, one at a time)
   Identifies open ports, services, and versions
+  Optional OS_DETECT toggle: runs nmap -O after port scan using known open ports for better accuracy
   Progress bar shows current host / total
 
 Phase 3 — Vulnerability Scan
@@ -318,7 +320,7 @@ fenrir/
 │       │   └── Terminal.jsx     # Filterable live console
 │       └── pages/
 │           ├── Phase1Detection.jsx    # ARP sweep, OS fingerprint, network map
-│           ├── Phase2PortScan.jsx     # Port scan with progress bar
+│           ├── Phase2PortScan.jsx     # Port scan with progress bar and OS detect toggle
 │           ├── Phase3VulnScan.jsx     # Vuln scan, findings list, AI analysis
 │           ├── Phase4Exploitation.jsx # 4-tab exploitation workbench
 │           ├── Phase5Report.jsx      # Report generation and download

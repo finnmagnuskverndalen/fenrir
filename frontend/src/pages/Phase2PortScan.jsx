@@ -5,6 +5,7 @@ import HostCard from '../components/HostCard'
 export default function Phase2PortScan() {
   const { hosts, selectedHosts, selectAllHosts, clearHostSelect, scanning, setScanning, setPhaseStatus, addTerminalLine, setPhase } = useFenrir()
   const [dryRun, setDryRun] = useState(false)
+  const [osDetect, setOsDetect] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [error, setError] = useState('')
 
@@ -25,7 +26,7 @@ export default function Phase2PortScan() {
 
         const res = await fetch('/api/scan/start', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target: ip, phases: ['ports'], dry_run: dryRun }),
+          body: JSON.stringify({ target: ip, phases: ['ports'], dry_run: dryRun, os_detect: osDetect }),
         })
         if (!res.ok) { const d = await res.json(); addTerminalLine(`[WARN] [phase2] ${ip}: ${d.detail}`) }
 
@@ -92,6 +93,18 @@ export default function Phase2PortScan() {
                 <div style={{ position: 'absolute', top: 2, left: dryRun ? 16 : 2, width: 12, height: 12, borderRadius: '50%', background: dryRun ? 'var(--amber)' : 'var(--text-4)', transition: 'left 0.2s' }} />
               </div>
               <span style={{ fontSize: 10, color: dryRun ? 'var(--amber)' : 'var(--text-3)', letterSpacing: '0.06em' }}>DRY_RUN</span>
+            </div>
+
+            <div onClick={() => !scanning && setOsDetect(!osDetect)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginLeft: 4 }} title="Run OS fingerprinting after port scan (requires root/cap_net_raw)">
+              <div style={{
+                width: 34, height: 18, borderRadius: 9, position: 'relative',
+                background: osDetect ? 'rgba(229,62,62,0.25)' : 'var(--bg-4)',
+                border: `1px solid ${osDetect ? 'var(--red-border)' : 'var(--border)'}`,
+                transition: 'all 0.2s',
+              }}>
+                <div style={{ position: 'absolute', top: 2, left: osDetect ? 16 : 2, width: 12, height: 12, borderRadius: '50%', background: osDetect ? 'var(--red)' : 'var(--text-4)', transition: 'left 0.2s' }} />
+              </div>
+              <span style={{ fontSize: 10, color: osDetect ? 'var(--red)' : 'var(--text-3)', letterSpacing: '0.06em' }}>OS_DETECT</span>
             </div>
 
             <button onClick={run} disabled={!canRun} style={{
