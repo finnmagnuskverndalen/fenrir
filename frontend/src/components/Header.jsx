@@ -43,7 +43,6 @@ export default function Header() {
             textShadow: '0 0 12px rgba(229,62,62,0.7)',
             animation: 'glitch 8s infinite',
           }}>FENRIR</span>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 8, color: 'var(--text-3)', letterSpacing: '0.15em' }}>v2.0 // WAR ROOM</span>
         </div>
       </div>
 
